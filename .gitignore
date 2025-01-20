@@ -1,0 +1,63 @@
+# TODO: simplify this later
+
+# Python
+__pycache__/
+*$py.class
+*.so
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+pythonenv*
+
+# Distribution / packaging
+dist/
+build/
+wheels/
+MANIFEST
+
+# Testing
+.pytest_cache/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Documentation
+docs/_build/
+site/
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Environment variables
+.env
+.env.*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
