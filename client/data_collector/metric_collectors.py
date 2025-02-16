@@ -4,7 +4,7 @@ import requests
 import psutil
 import GPUtil
 from typing import Dict, Any
-from config.config import HuggingFaceCollectorConfig, StockPriceCollectorConfig
+from config.config import HuggingFaceCollectorConfig
 
 
 # ======================= Local System Collector =======================
@@ -140,95 +140,3 @@ class HuggingFaceCollector:
                 {"error": exc}
             )
             return {}
-
-
-# ======================= Stock Price Collector =======================
-class StockPriceCollector:
-    """
-    Collects stock prices for a list of companies (tickers) from Alpha Vantage.
-    """
-
-    def __init__(self, config: StockPriceCollectorConfig):
-        """
-        :param config: Configuration dictionary for the stock collector, e.g.:
-            {
-                "base_url": "https://www.alphavantage.co/query",
-                "api_key": "YOUR_ALPHA_VANTAGE_API_KEY",
-                "companies": ["NVDA", "MSFT", "GOOG"],
-                "num_companies": 5
-            }
-        """
-        self.logger = logging.getLogger(__name__)
-        self.base_url = config.base_url
-        self.api_key = config.api_key
-        self.companies = config.companies
-
-    def collect_metrics(self) -> Dict[str, Any]:
-        """
-        Fetches current stock prices for up to `num_companies` from the companies list.
-        Returns a single dictionary, e.g.:
-            {
-                "NVDA_price": 415.22,
-                "NVDA_change_percent": "1.01%",
-                "MSFT_price": 337.87,
-                "MSFT_change_percent": "-0.33%",
-                ...
-            }
-        If any request fails, logs an error but continues with the next symbol.
-        """
-        metrics = {}
-
-        for symbol in self.companies:
-            try:
-                params = {
-                    "function": "GLOBAL_QUOTE",
-                    "symbol": symbol,
-                    "apikey": self.api_key
-                }
-                self.logger.debug(
-                    "[Stock] Fetching price for %(symbol)s with params=%(params)s", 
-                    {"symbol": symbol, "params": params}
-                )
-                response = requests.get(self.base_url, params=params, timeout=10)
-                response.raise_for_status()  # Raises HTTPError if 4xx or 5xx
-
-                data = response.json()
-                quote = data.get("Global Quote", {})
-
-                # Extract relevant fields
-                # TODO: put this in a config file
-                price_str = quote.get("05. price")    
-                change_pct = quote.get("10. change percent") 
-
-                if price_str is None:
-                    self.logger.warning(
-                        "[Stock] No price found for symbol %(symbol)s. Raw data: %(data)s", 
-                        {"symbol": symbol, "data": data}
-                    )
-                    continue
-
-                # Convert price to float
-                try:
-                    price = float(price_str)
-                except ValueError:
-                    self.logger.warning(
-                        "[Stock] Invalid price for %(symbol)s: %(price_str)s", 
-                        {"symbol": symbol, "price_str": price_str}
-                    )
-                    continue
-
-                # Add dynamic keys to the metrics dictionary
-                metrics[f"{symbol}_price"] = price
-                metrics[f"{symbol}_change_percent"] = change_pct or "N/A"
-
-            except Exception as exc:
-                self.logger.error(
-                    "[Stock] Failed to fetch data for %(symbol)s: %(error)s",
-                    {"symbol": symbol, "error": exc}
-                )
-
-        self.logger.debug(
-            "[Stock] Collected metrics: %(metrics)s", 
-            {"metrics": metrics}
-        )
-        return metrics

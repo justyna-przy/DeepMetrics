@@ -4,6 +4,7 @@ import time
 import logging
 from queue import Queue
 from typing import Any, Dict, Callable
+from .snapshot import Device
 
 class CollectorAgent(threading.Thread):
     """
@@ -16,7 +17,8 @@ class CollectorAgent(threading.Thread):
         collector: Callable[[], Dict[str, Any]],
         output_queue: Queue,
         interval: float = 10.0,
-        logger: logging.Logger = None
+        logger: logging.Logger = None,
+        device_name: str = "UnknownDevice"
     ):
         super().__init__()
         self.collector = collector
@@ -24,20 +26,23 @@ class CollectorAgent(threading.Thread):
         self.interval = interval
         self.stop_event = threading.Event()
         self.logger = logger or logging.getLogger(__name__)
+        self.device_name = device_name  
 
     def run(self):
         self.logger.info(
-            "[CollectorAgent] Starting collectors for %(collector)s",
-            {"collector": self.collector.__class__.__name__}
+            "[CollectorAgent] Starting collectors for %(collector)s as device '%(dev)s'",
+            {"collector": self.collector.__class__.__name__, "dev": self.device_name}
         )
         while not self.stop_event.is_set():
             try:
                 metrics = self.collector.collect_metrics()
+
                 if metrics:
-                    self.output_queue.put(metrics)
+                    device_obj = Device(device_name=self.device_name, metrics=metrics)
+                    self.output_queue.put(device_obj)
                     self.logger.debug(
-                        "[CollectorAgent] Enqueued metrics: %(metrics)s", 
-                        {"metrics": metrics}
+                        "[CollectorAgent] Enqueued device: %(device)s",
+                        {"device": device_obj}
                     )
                 else:
                     self.logger.debug(

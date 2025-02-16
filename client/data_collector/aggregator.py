@@ -2,8 +2,11 @@
 import time
 import logging
 from queue import Queue
-from typing import Dict, Any
-from .snapshot import Snapshot
+from typing import List
+import requests 
+from dataclasses import asdict  # For converting dataclass to dict
+from .snapshot import Snapshot, Device
+import json
 
 class Aggregator:
     """
@@ -27,42 +30,53 @@ class Aggregator:
                 time.sleep(self.interval)
                 snapshot = self.aggregate()
 
-                if snapshot.metrics:
-                    # If you have metrics, do something with them: log, send to DB, etc.
+                if snapshot.devices:
                     self.logger.info(
-                        "[Aggregator] New Snapshot: %(snapshot)s", 
+                        "[Aggregator] New Snapshot: %(snapshot)s",
                         {"snapshot": snapshot}
                     )
+
+                    # Convert to dictionary
+                    snapshot_data = asdict(snapshot)
+
+                    try:
+                        payload = json.dumps(snapshot_data, default=str)  # convert datetime -> string
+                        response = requests.post(
+                            "http://localhost:8000/api/snapshots",
+                            data=payload,  # pass as raw data
+                            headers={"Content-Type": "application/json"},
+                            timeout=5
+                        )
+                        response.raise_for_status()
+                        self.logger.info(
+                            "Successfully sent snapshot to backend. Response: %s", 
+                            response.text
+                        )
+                    except requests.RequestException as e:
+                        self.logger.error("Failed to send snapshot: %s", e)
                 else:
-                    self.logger.debug("[Aggregator] No metrics to aggregate.")
+                    self.logger.debug("[Aggregator] No devices to aggregate.")
+
         except KeyboardInterrupt:
             self.logger.info("Aggregator interrupted by user.")
         finally:
             self.logger.info("Aggregator stopped.")
 
     def aggregate(self) -> Snapshot:
-        """
-        Drains the queue, merges all metric dictionaries into one,
-        and returns a Snapshot.
-        """
-        merged_metrics: Dict[str, Any] = {}
+        device_dict = {} # Ensures each device only occurs once by overridding old data
+
         while not self.input_queue.empty():
             item = self.input_queue.get()
-            if isinstance(item, dict):
-                merged_metrics.update(item)
+            if isinstance(item, Device):
+                device_dict[item.device_name] = item
             else:
                 self.logger.warning(
-                    "[Aggregator] Non-dict item in queue: %(item)s",
+                    "[Aggregator] Non-Device item in queue: %(item)s",
                     {"item": item}
                 )
 
-        if merged_metrics:
-            snapshot = Snapshot(metrics=merged_metrics)
-
-            return snapshot
-        else:
-            return Snapshot()  # empty metrics
-
+        return Snapshot(devices=list(device_dict.values()))
+        
     def stop(self):
         """
         Gracefully stops the aggregator loop.
