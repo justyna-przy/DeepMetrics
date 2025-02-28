@@ -4,7 +4,7 @@ import time
 import logging
 from queue import Queue
 from typing import Any, Dict, Callable
-from .snapshot import Device
+from .snapshot import DeviceSnapshot
 
 class CollectorAgent(threading.Thread):
     """
@@ -38,7 +38,7 @@ class CollectorAgent(threading.Thread):
                 metrics = self.collector.collect_metrics()
 
                 if metrics:
-                    device_obj = Device(device_name=self.device_name, metrics=metrics)
+                    device_obj = DeviceSnapshot(device_name=self.device_name, metrics=metrics)
                     self.output_queue.put(device_obj)
                     self.logger.debug(
                         "[CollectorAgent] Enqueued device: %(device)s",

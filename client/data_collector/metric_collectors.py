@@ -40,7 +40,6 @@ class LocalMetricsCollector:
                 gpus = GPUtil.getGPUs()
                 for gpu in gpus:
                     gpu_id = gpu.id
-                    gpu_metrics[f"gpu_{gpu_id}_name"] = gpu.name
                     gpu_metrics[f"gpu_{gpu_id}_usage_percent"] = gpu.load * 100
                     gpu_metrics[f"gpu_{gpu_id}_temperature_celsius"] = gpu.temperature
                     gpu_metrics[f"gpu_{gpu_id}_memory_total_mb"] = gpu.memoryTotal

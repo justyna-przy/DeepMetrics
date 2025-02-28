@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import uvicorn
-from routes import router
+from .routes import router
 
 app = FastAPI(
     title="DeepMetrics API",

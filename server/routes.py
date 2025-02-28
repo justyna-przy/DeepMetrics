@@ -1,48 +1,76 @@
-from fastapi import APIRouter
-from fastapi.responses import Response
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any
-from datetime import datetime, timezone
-import json
+# routes.py
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from .database.db import get_db
+from .schemas import AggregatorIn
+from .database.models_ex import (
+    AggregatorEx,
+    DeviceEx,
+    DeviceSnapshotEx,
+    MetricDefinitionEx,
+    MetricValueEx
+)
 
 router = APIRouter()
 
-# Global variable to store the last snapshot
-last_snapshot = None
-
-# Define a Pydantic model for a Device.
-class Device(BaseModel):
-    device_name: str
-    metrics: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-# Define a Pydantic model for a Snapshot.
-class Snapshot(BaseModel):
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    devices: List[Device] = Field(default_factory=list)
-
 @router.post("/api/snapshots")
-async def receive_snapshot(snapshot: Snapshot):
+def create_aggregator_snapshot(agg_in: AggregatorIn, db: Session = Depends(get_db)):
     """
-    Endpoint to receive snapshots from the aggregator.
+    Receives an AggregatorIn payload with a GUID, name, and device snapshots.
+    Inserts/updates aggregator, devices, metric definitions, 
+    then stores new snapshots and metric values.
     """
-    global last_snapshot
-    last_snapshot = snapshot
-    # For debugging/logging purposes, print the received data.
-    print("Received snapshot:", snapshot.model_dump())
-    
-    # You can add processing logic here (e.g., storing in a database).
-    return {"message": "Snapshot received", "device_count": len(snapshot.devices)}
 
-@router.get("/api/snapshot")
-async def get_snapshot():
-    """
-    GET endpoint that returns the last received snapshot in pretty printed JSON.
-    """
-    if last_snapshot is None:
-        content = json.dumps({"message": "No snapshot available."}, indent=4)
-        return Response(content=content, media_type="application/json")
-    
-    # Convert the snapshot to a dict, then dump it as pretty printed JSON.
-    content = json.dumps(last_snapshot.dict(), indent=4, default=str)
-    return Response(content=content, media_type="application/json")
+    # 1. Upsert aggregator by guid
+    aggregator = db.query(AggregatorEx).filter_by(guid=agg_in.guid).first()
+    if not aggregator:
+        aggregator = AggregatorEx(guid=agg_in.guid, name=agg_in.name)
+        db.add(aggregator)
+        db.flush()
+    else:
+        # Optionally update aggregator name if it changed
+        aggregator.name = agg_in.name
+
+    # 2. For each device snapshot
+    for ds_in in agg_in.device_snapshots:
+        # Upsert device
+        device = db.query(DeviceEx).filter_by(
+            aggregator_id=aggregator.aggregator_id,
+            name=ds_in.device_name
+        ).first()
+        if not device:
+            device = DeviceEx(
+                aggregator_id=aggregator.aggregator_id,
+                name=ds_in.device_name
+            )
+            db.add(device)
+            db.flush()
+
+        # Create a new device snapshot
+        snapshot = DeviceSnapshotEx(
+            device_id=device.device_id,
+            snapshot_time=ds_in.timestamp
+        )
+        db.add(snapshot)
+        db.flush()
+
+        # 3. For each metric in ds_in.metrics
+        for metric_name, metric_value in ds_in.metrics.items():
+            # Upsert metric definition
+            metric_def = db.query(MetricDefinitionEx).filter_by(metric_name=metric_name).first()
+            if not metric_def:
+                metric_def = MetricDefinitionEx(metric_name=metric_name)
+                db.add(metric_def)
+                db.flush()
+
+            # Insert metric value
+            mv = MetricValueEx(
+                device_snapshot_id=snapshot.device_snapshot_id,
+                metric_def_id=metric_def.metric_def_id,
+                metric_value=metric_value
+            )
+            db.add(mv)
+
+    db.commit()
+    return {"message": "Aggregator snapshot data saved successfully."}
