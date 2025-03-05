@@ -1,9 +1,20 @@
 import React, { ReactNode } from 'react';
 import { ThemeProvider } from 'styled-components';
+import { GlobalStyles } from './GlobalStyles';
 
-const theme = {
+
+export const theme = {
   colors: {
-    primary: '#0070f3',
+    primary: '#1a73e8',
+    secondary: '#8884d8',
+    text: '#333'
+  },
+  DeviceCardDimensions: {
+    widthDesktop: '27rem', 
+    widthMobile: '100%', 
+  },
+  breakpoints: {
+    mobile: '768px',  
   },
 };
 
@@ -12,5 +23,10 @@ interface CustomThemeProviderProps {
 }
 
 export default function CustomThemeProvider({ children }: CustomThemeProviderProps) {
-  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+  return (
+    <ThemeProvider theme={theme}>
+      <GlobalStyles />
+      {children}
+    </ThemeProvider>
+  );
 }
