@@ -12,10 +12,34 @@ export const GlobalStyles = createGlobalStyle`
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
-                 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 
-                 'Droid Sans', 'Helvetica Neue', sans-serif;
-    background-color: #f0f0f0; 
-    color: #333;
+    font-family: "Recursive", sans-serif;
+    background-color: #0b0813; 
+    color: white;
+  }
+
+
+  ::-webkit-scrollbar {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0b0813;
+    border-radius: 0.3rem;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #4c4f78;
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #6c6f98;
+    cursor: pointer;
+  }
+
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #4c4f78 #1e1e2e;
   }
 `;

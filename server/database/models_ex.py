@@ -1,3 +1,5 @@
+# models_ex.py
+
 from sqlalchemy.orm import relationship
 from server.database.models import (
     Base,
@@ -5,11 +7,13 @@ from server.database.models import (
     Device as BaseDevice,
     DeviceSnapshot as BaseDeviceSnapshot,
     MetricDefinition as BaseMetricDefinition,
-    MetricValue as BaseMetricValue
+    MetricValue as BaseMetricValue,
+    MetricDisplayConfig as BaseMetricDisplayConfig  # <-- Import the new table
 )
 
+
 class AggregatorEx(BaseAggregator):
-    __tablename__ = 'aggregators'  
+    __tablename__ = 'aggregators'
 
     devices = relationship(
         "DeviceEx",
@@ -45,7 +49,6 @@ class DeviceEx(BaseDevice):
         return max(self.device_snapshots, key=lambda s: s.snapshot_time)
 
 
-
 class DeviceSnapshotEx(BaseDeviceSnapshot):
     __tablename__ = 'device_snapshots'
 
@@ -63,7 +66,6 @@ class DeviceSnapshotEx(BaseDeviceSnapshot):
         """
         Return the MetricValueEx object for a given metric_name, or None if not found.
         """
-        # You might do a lookup by matching the metric_definition metric_name
         for mv in self.metric_values:
             if mv.metric_def and mv.metric_def.metric_name == metric_name:
                 return mv
@@ -79,6 +81,13 @@ class MetricDefinitionEx(BaseMetricDefinition):
         cascade="all, delete-orphan"
     )
 
+    display_config = relationship(
+        "MetricDisplayConfigEx",
+        back_populates="metric_def",
+        uselist=False,            # Because metric_def_id is unique in metric_display_config
+        cascade="all, delete-orphan"
+    )
+
 
 class MetricValueEx(BaseMetricValue):
     __tablename__ = 'metric_values'
@@ -90,4 +99,15 @@ class MetricValueEx(BaseMetricValue):
     metric_def = relationship(
         "MetricDefinitionEx",
         back_populates="metric_values"
+    )
+
+
+class MetricDisplayConfigEx(BaseMetricDisplayConfig):
+    __tablename__ = 'metric_display_config'
+
+    # One-to-one relationship back to MetricDefinitionEx
+    metric_def = relationship(
+        "MetricDefinitionEx",
+        back_populates="display_config",
+        uselist=False
     )

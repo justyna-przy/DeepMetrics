@@ -1,13 +1,16 @@
 import React, { ReactNode } from 'react';
 import { ThemeProvider } from 'styled-components';
 import { GlobalStyles } from './GlobalStyles';
-
+import { eventNames } from 'process';
 
 export const theme = {
   colors: {
-    primary: '#1a73e8',
-    secondary: '#8884d8',
-    text: '#333'
+    header: '#181229',
+    primary: '#ff51ff',
+    text: '#ffffff',
+    device_background: '#120e1f',
+    odd_row: '#0b0813',
+    even_row: '#1f1b2f',
   },
   DeviceCardDimensions: {
     widthDesktop: '27rem', 

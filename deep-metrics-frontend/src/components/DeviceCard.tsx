@@ -8,9 +8,8 @@ interface DeviceCardProps {
 }
 
 const DeviceCardContainer = styled.div`
-  border: 1px solid #ccc;
   border-radius: 0.75rem;
-  background-color: #fff;
+  background-color: ${({ theme }) => theme.colors.device_background};
   width: ${({ theme }) => theme.DeviceCardDimensions.widthDesktop};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -19,8 +18,7 @@ const DeviceCardContainer = styled.div`
 `;
 
 const DeviceHeader = styled.div`
-  background-color: ${({ theme }) => theme.colors.primary};
-  color: #fff;
+  background-color: ${({ theme }) => theme.colors.header};
   border-top-left-radius: 0.75rem;
   border-top-right-radius: 0.75rem;
   padding: 0.7rem;
@@ -43,22 +41,23 @@ const DeviceBody = styled.div`
   display: flex;
   flex-direction: column;
   margin: 1rem;
-  border: 1px solid #ccc;
   border-radius: 0.75rem;
   overflow: hidden;
+  background-color: ${({ theme }) => theme.colors.device_background};
+  border: 1px solid ${({ theme }) => theme.colors.header};
 
   /* Add a thin divider after each metric except the last child */
   & > *:not(:last-child) {
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.header};
   }
 
   /* Alternate background: odd vs. even children */
   & > *:nth-child(odd) {
-    background-color: #fafafa;
+    background-color: ${({ theme }) => theme.odd_row};
   }
 
   & > *:nth-child(even) {
-    background-color: #fff;
+    background-color: ${({ theme }) => theme.even_row};
   }
 `;
 

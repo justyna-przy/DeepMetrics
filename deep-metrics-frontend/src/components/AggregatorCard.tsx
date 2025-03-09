@@ -1,5 +1,9 @@
-import React from 'react';
-import styled from 'styled-components';
+import React from "react";
+import styled from "styled-components";
+import { frostedGlass } from "../mixins";
+import { createGlobalStyle } from "styled-components";
+import StyledDropdown from "./Dropdown"; 
+
 
 interface Device {
   deviceId: number;
@@ -15,17 +19,16 @@ interface AggregatorCardProps {
 
 const AggregatorCardContainer = styled.div`
   width: calc(100% - 4rem);
-  max-width: 85rem;
+  max-width: 87rem;
   margin: 2rem auto;
-  background-color: #fff;
-  border: 1px solid #ccc;
   border-radius: 0.75rem;
   /* Set a fixed height so overflow can scroll */
- 
+  ${frostedGlass}
+  overflow: hidden;
 `;
 
 const AggregatorHeader = styled.div`
-  background-color: ${({ theme }) => theme.colors.primary};
+  background-color: ${({ theme }) => theme.colors.header};
   color: #fff;
   padding: 0.7rem;
   display: flex;
@@ -41,12 +44,39 @@ const Title = styled.h3`
 `;
 
 const DeviceDropdown = styled.select`
-  background-color: #fff;
-  color: #000;
-  border: 1px solid #ccc;
+  appearance: none;
+  background-color: ${({ theme }) => theme.colors.device_background};
+  color: ${({ theme }) => theme.colors.text};
+  border: 1px solid ${({ theme }) => theme.colors.header};
   border-radius: 0.25rem;
   font-size: 1rem;
   padding: 0.25rem;
+  padding-right: 2rem; /* Space for custom arrow */
+  cursor: pointer;
+
+  /* Custom dropdown arrow */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+
+  &::-ms-expand {
+    display: none;
+  }
+`;
+
+/* Apply styles globally to dropdown options */
+const GlobalDropdownStyles = createGlobalStyle`
+  select option {
+    background-color: ${({ theme }) => theme.colors.device_background};
+    color: ${({ theme }) => theme.colors.text};
+  }
+
+  select option:hover,
+  select option:focus {
+    background-color: ${({ theme }) =>
+      theme.colors.highlight}; /* Change this to your preferred hover color */
+  }
 `;
 
 const AggregatorBody = styled.div`
@@ -63,7 +93,7 @@ const AggregatorCard: React.FC<AggregatorCardProps> = ({
   aggregatorName,
   devices,
   onSelectDevice,
-  children
+  children,
 }) => {
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = Number(e.target.value);
@@ -74,18 +104,16 @@ const AggregatorCard: React.FC<AggregatorCardProps> = ({
     <AggregatorCardContainer>
       <AggregatorHeader>
         <Title>{aggregatorName}</Title>
-        <DeviceDropdown onChange={handleSelectChange}>
-          <option value="">-- Select a device --</option>
+        <StyledDropdown onChange={handleSelectChange}>
+          <option value="">Select a device</option>
           {devices.map((d) => (
             <option key={d.deviceId} value={d.deviceId}>
               {d.deviceName}
             </option>
           ))}
-        </DeviceDropdown>
+        </StyledDropdown>
       </AggregatorHeader>
-      <AggregatorBody>
-        {children}
-      </AggregatorBody>
+      <AggregatorBody>{children}</AggregatorBody>
     </AggregatorCardContainer>
   );
 };

@@ -34,6 +34,16 @@ class Device(Base):
     aggregator = relationship('Aggregator')
 
 
+class MetricDisplayConfig(Base):
+    __tablename__ = 'metric_display_config'
+
+    metric_display_config_id = Column(Integer, primary_key=True, server_default=text("nextval('metric_display_config_metric_display_config_id_seq'::regclass)"))
+    metric_def_id = Column(ForeignKey('metric_definitions.metric_def_id', ondelete='CASCADE'), nullable=False, unique=True)
+    display_type = Column(Text, nullable=False, server_default=text("'row'::text"))
+
+    metric_def = relationship('MetricDefinition', uselist=False)
+
+
 class DeviceSnapshot(Base):
     __tablename__ = 'device_snapshots'
     __table_args__ = (

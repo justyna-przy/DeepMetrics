@@ -1,20 +1,20 @@
 import React from 'react';
 import styled from 'styled-components';
 
-interface TableMetricProps {
+interface RowMetricProps {
     metricName: string;
     value: number;
     onClick?: (metricName: string) => void;
 }
 
-const TableRow = styled.tr`
+const RowContainer = styled.tr`
     display: flex;
     justify-content: space-between;
-    padding: 1rem;
+    padding: 0.3rem 1rem;
     flex-direction: row;
     cursor: pointer;
     &:hover {
-        background-color: #fafafa;
+        background-color: ${({ theme }) => theme.colors.header};
     }
 `;
 
@@ -32,13 +32,13 @@ const MetricValue = styled.h2`
     color: ${({ theme }) => theme.colors.text};
 `
 
-const TableMetric: React.FC<TableMetricProps> = ({ metricName, value, onClick }) => {
+const RowMetric: React.FC<RowMetricProps> = ({ metricName, value, onClick }) => {
     return (
-        <TableRow onClick={() => onClick?.(metricName)}>
+        <RowContainer onClick={() => onClick?.(metricName)}>
             <MetricName>{metricName}</MetricName>
             <MetricValue>{value}</MetricValue>
-        </TableRow>
+        </RowContainer>
     )
 }
 
-export default TableMetric;
+export default RowMetric;
