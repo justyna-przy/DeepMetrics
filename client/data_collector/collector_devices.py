@@ -6,6 +6,7 @@ import GPUtil
 from typing import Dict, Any
 from config.config import HuggingFaceCollectorConfig
 
+import metric_aggregator_sdk
 
 # ======================= Local System Collector =======================
 class LocalMetricsCollector:

@@ -2,7 +2,7 @@ import logging
 import queue
 from config.config import Config
 from utils.logger import setup_logging
-from data_collector.metric_collectors import LocalMetricsCollector, HuggingFaceCollector
+from client.data_collector.collector_devices import LocalMetricsCollector, HuggingFaceCollector
 from data_collector.collector_agent import CollectorAgent
 from data_collector.aggregator import Aggregator
 
