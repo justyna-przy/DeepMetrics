@@ -1,8 +1,4 @@
 {
-    "database_config": {
-        "host": "localhost",
-        "port": 5432
-    },
     "logging_config": {
         "console_output": {
             "enabled": true,
@@ -28,8 +24,8 @@
             "backup_count": 5
         }
     },
-    "collectors_config": {
-        "huggingface_collector": {
+    "device_config": {
+        "huggingface": {
             "base_url": "https://huggingface.co",
             "endpoint": "/api/models",
             "params": {
@@ -38,11 +34,6 @@
                 "limit": 10
             },
             "num_models": 5
-        },
-        "stock_price_collector": {
-            "base_url": "https://www.alphavantage.co/query",
-            "api_key": "${ALPHA_VANTAGE_API_KEY}",
-            "companies": ["NVDA", "MSFT", "GOOG", "AMD", "META"]
         }
     }
 }

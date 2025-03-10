@@ -7,6 +7,7 @@ import threading
 import requests
 from dataclasses import asdict
 from typing import Optional
+from metric_aggregator_sdk.config.config import Config
 
 from .dto_models import DeviceSnapshot, AggregatorData
 from .retry_queue import RetryQueue
@@ -19,26 +20,27 @@ class AggregatorAPI(threading.Thread):
     to relay commands to registered devices.
     """
     def __init__(
-        self,
-        guid: str,
-        name: str,
-        base_url: str,
-        interval: float = 10.0,
-        retry_interval: float = 30.0,
+        self, 
+        guid: str, 
+        name: str, 
+        script_path: Optional[str] = None, 
+        config_path: str = "default_config.json",
         logger: Optional[logging.Logger] = None
     ):
         super().__init__()
+        sdk_config = Config(script_path=script_path, config_path=config_path)
+        aggregator_cfg = sdk_config.aggregatorSDK
         self.guid = guid
         self.name = name
-        self.base_url = base_url.rstrip("/")
-        self.interval = interval
-        self.retry_interval = retry_interval
+        self.base_url = aggregator_cfg.base_url.rstrip("/")
+        self.snapshots_endpoint = aggregator_cfg.snapshots_endpoint
+        self.interval = aggregator_cfg.interval
+        self.retry_interval = aggregator_cfg.retry_interval
         self.logger = logger or logging.getLogger(__name__)
         self._stop_event = threading.Event()
         self._snapshot_buffer = {}  # device_name -> DeviceSnapshot
         self._snapshot_lock = threading.Lock()
         self.retry_queue = RetryQueue(logger=self.logger)
-        # Device registry: mapping device names to concrete Device instances.
         self.device_registry = {}
 
     def register_device(self, device: Device):
@@ -139,7 +141,7 @@ class AggregatorAPI(threading.Thread):
         and False if the connection failed (to trigger a retry).
         """
         payload = json.dumps(asdict(aggregator_data), default=str)
-        url = f"{self.base_url}/api/snapshots"
+        url = f"{self.base_url}{self.snapshots_endpoint}"
         device_names = [snap.device_name for snap in aggregator_data.device_snapshots]
         self.logger.info("[AggregatorAPI] Attempting to upload data for devices: %s", device_names)
         connected_successfully = False

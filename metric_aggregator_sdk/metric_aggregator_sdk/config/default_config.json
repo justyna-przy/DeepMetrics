@@ -1,0 +1,8 @@
+{
+    "aggregator_sdk_config" : {
+        "base_url": "http://localhost:8000",
+        "snapshots_endpoint": "/api/snapshots",
+        "interval": 10.0,
+        "retry_interval": 30.0
+    }
+}

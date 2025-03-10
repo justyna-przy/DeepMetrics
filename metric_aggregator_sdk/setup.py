@@ -6,6 +6,7 @@ setup(
     description="A resilient SDK for aggregating and uploading device snapshots. Part of my ISE Context of the Code project.",
     author="Justyna Przyborska",
     packages=find_packages(),
+    # TODO: check this
     install_requires=[
         "requests>=2.20.0",
         "dataclasses-json",

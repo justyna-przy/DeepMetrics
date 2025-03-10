@@ -8,7 +8,6 @@ class Device(ABC):
     """
     def __init__(self, name: str):
         self.name = name
-        self.logger = logging.getLogger(f"Device.{name}") # TODO: fix loggers and config
 
     @abstractmethod
     def handle_command(self, command: str):
