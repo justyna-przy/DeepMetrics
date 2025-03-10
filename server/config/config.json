@@ -1,0 +1,60 @@
+{
+  "uvicorn_log_config": {
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+      "color": {
+        "()": "colorlog.ColoredFormatter",
+        "format": "%(log_color)s%(levelname).1s:[%(name)s](%(asctime)s)> %(message)s",
+        "datefmt": "%Y-%m-%d %H:%M:%S",
+        "log_colors": {
+          "DEBUG": "cyan",
+          "INFO": "green",
+          "WARNING": "yellow",
+          "ERROR": "red",
+          "CRITICAL": "red,bg_white"
+        }
+      }
+    },
+    "handlers": {
+      "console": {
+        "class": "logging.StreamHandler",
+        "formatter": "color",
+        "level": "DEBUG"
+      },
+      "file": {
+        "class": "logging.handlers.RotatingFileHandler",
+        "formatter": "color",
+        "level": "WARNING",
+        "filename": "logs/server.log",
+        "maxBytes": 10485760,
+        "backupCount": 5
+      }
+    },
+    "loggers": {
+      "uvicorn": {
+        "handlers": ["console"],
+        "level": "DEBUG",
+        "propagate": false
+      },
+      "uvicorn.error": {
+        "handlers": ["console"],
+        "level": "INFO",
+        "propagate": true
+      },
+      "uvicorn.access": {
+        "handlers": ["console"],
+        "level": "INFO",
+        "propagate": true
+      },
+      "root": { "handlers": ["console"], "level": "DEBUG" }
+    }
+  },
+  "server_config": {
+    "allowed_origins": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001"
+    ]
+  }
+}

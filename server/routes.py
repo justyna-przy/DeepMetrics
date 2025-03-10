@@ -1,12 +1,13 @@
 # routes.py
+import logging
 from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from .database.db import get_db
-from .schemas import AggregatorIn
-from .database.models_ex import (
+from database.db import get_db
+from schemas import AggregatorIn
+from database.models_ex import (
     AggregatorEx,
     DeviceEx,
     DeviceSnapshotEx,
@@ -244,6 +245,8 @@ def get_overview(
 
         agg_info["devices"] = device_list
         result.append(agg_info)
+
+    logging.getLogger("uvicorn").info("Hello from uvicorn logger!")
 
     return result
 

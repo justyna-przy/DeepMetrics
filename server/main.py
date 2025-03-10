@@ -1,33 +1,40 @@
-from fastapi import FastAPI
 import uvicorn
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import router
+from config.config import Config
 
+# 2. Create and load the config
+config = Config()  # or whatever filename/path you like
+
+from routes import router
+
+# 4. Build the FastAPI app
 app = FastAPI(
     title="DeepMetrics API",
     description="API for receiving snapshots from clients",
     version="1.0",
 )
 
-# List all the origins you allow (e.g., your React dev server address).
-# Use ["*"] to allow all, but more restrictive is better for production.
-origins = [
-    "http://localhost:3001",
-    "http://localhost:3000",
-    "http://127.0.0.1:3001"
-]
-
+# 5. Apply CORS from config
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # or ["*"]
+    allow_origins=config.server_settings.allowed_origins,  # or ["*"]
     allow_credentials=True,
-    allow_methods=["*"],        # or specific methods like ["GET", "POST"]
-    allow_headers=["*"],        # or specific headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+# 6. Include your router
 app.include_router(router)
 
 if __name__ == "__main__":
-    # Use reload=True during development so that changes are automatically reloaded.
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # 7. Run Uvicorn, telling it not to override our logging config
+    logger.info("Starting server on 0.0.0.0:8000...")
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_config=config.uvicorn_log_config  
+    )
