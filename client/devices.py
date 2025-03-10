@@ -2,10 +2,8 @@ import logging
 import psutil
 import requests
 import GPUtil
-from typing import Dict, Any
-from config.config import HuggingFaceCollectorConfig
+from typing import Dict
 
-from metric_aggregator_sdk.aggregator_api import AggregatorAPI
 from metric_aggregator_sdk.device import Device
 from metric_aggregator_sdk.dto_models import DeviceSnapshot, Numeric
 
@@ -13,24 +11,18 @@ class LocalDevice(Device):
     """
     A concrete device class for collecting local system metrics.
     """
-
-    def __init__(self, name: str = "Justyna's Laptop"):
+    def __init__(self, name: str = "Local Device", logger: logging.Logger = logging.getLogger("__name__")):
         super().__init__(name)
-        self.logger = logging.getLogger("LocalDevice")
+        self.logger = logger
 
     def handle_command(self, command: str):
-        """
-        Handle a command sent from the aggregator.
-        For example, "restart_collector" to restart local metric collection.
-        """
         self.logger.info("LocalDevice received command: %s", command)
         if command == "restart_collector":
             self.restart_collector()
-        # You can add additional command handling as needed.
 
     def restart_collector(self):
         self.logger.info("Restarting collector on LocalDevice...")
-        # Insert the actual logic to restart the collector here.
+        # TODO: Implement collector restart logic here.
 
     def collect_metrics(self) -> DeviceSnapshot:
         """
@@ -77,19 +69,17 @@ class LocalDevice(Device):
             return DeviceSnapshot(device_name=self.name, metrics={})
 
 
-# ------------------- HuggingFace Device -------------------
 class HuggingFaceDevice(Device):
     """
     A concrete device class for collecting metrics from the Hugging Face API.
-    Inherits from the abstract Device class.
     """
 
-    def __init__(self, config, name: str = "Hugging Face Top Models"):
+    def __init__(self, config, name: str = "Hugging Face Top Models", logger: logging.Logger = logging.getLogger("__name__")):
         """
         :param config: A configuration object/dictionary for Hugging Face (e.g., containing base_url, endpoint, params, and num_models).
         """
         super().__init__(name)
-        self.logger = logging.getLogger("HuggingFaceDevice")
+        self.logger = logger
         self.config = config
         self.base_url = config.base_url
         self.endpoint = config.endpoint
@@ -101,7 +91,6 @@ class HuggingFaceDevice(Device):
         Handle a command sent from the aggregator.
         """
         self.logger.info("HuggingFaceDevice received command: %s", command)
-        # Add device-specific command handling here.
 
     def collect_metrics(self) -> DeviceSnapshot:
         """
@@ -120,7 +109,7 @@ class HuggingFaceDevice(Device):
 
             top_models = data[:self.num_models]
             metrics = {}
-            for i, model in enumerate(top_models, start=1):
+            for _, model in enumerate(top_models, start=1):
                 metrics[model.get("modelId")] = model.get("downloads")
 
             self.logger.info("HuggingFaceDevice collected metrics: %s", metrics)

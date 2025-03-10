@@ -2,7 +2,6 @@ import json
 import os
 import logging
 from dataclasses import dataclass
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 import colorlog
@@ -46,10 +45,16 @@ class HuggingFaceConfig:
 class DeviceConfig:
     huggingface: HuggingFaceConfig
 
-@pydantic_dataclass
+@dataclass
+class AggregatorConfig:
+    guid: str
+    name: str
+
 class Config:
     logging_config: LoggingConfig
     device_config: DeviceConfig
+    aggregator_config: AggregatorConfig
+
 
     @staticmethod
     def set_working_directory(script_path: str) -> str:
@@ -61,30 +66,38 @@ class Config:
         os.chdir(script_dir)
         return script_dir
 
-    def __init__(self, script_path: Optional[str] = None, config_path: str = "config.json"):
+    def __init__(self, script_path: Optional[str] = None, config_path: str = "config/config.json"):
         """
         Loads config from a JSON file, validates it with Pydantic, and stores the config sections.
         Args:
             script_path: The __file__ value from the calling script.
             config_path: Path to the JSON configuration file.
         """
-        load_dotenv()  # Load env variables from .env if present
+        load_dotenv()
 
         if script_path:
             self.set_working_directory(script_path)
 
         raw_config = self._load_config(config_path)
-
         self._replace_env_vars(raw_config)
 
-        # Explicitly create nested configuration objects for strong typing.
+        # Build nested objects manually and explicitly converting the nested dictionaries to Config objects so they are strongly typed.
+        logging_dict = raw_config.get("logging_config", {})
+        device_dict = raw_config.get("device_config", {})
+        aggregator_dict = raw_config.get("aggregator_config", {})
+
         self.logging_config = LoggingConfig(
-            console_output=ConsoleOutput(**raw_config.get("logging_config", {}).get("console_output", {})),
-            file_output=FileOutput(**raw_config.get("logging_config", {}).get("file_output", {}))
+            console_output=ConsoleOutput(**logging_dict.get("console_output", {})),
+            file_output=FileOutput(**logging_dict.get("file_output", {}))
         )
         self.device_config = DeviceConfig(
-            huggingface=HuggingFaceConfig(**raw_config.get("device_config", {}).get("huggingface", {}))
+            huggingface=HuggingFaceConfig(**device_dict.get("huggingface", {}))
         )
+        self.aggregator_config = AggregatorConfig(
+            guid=aggregator_dict.get("guid", ""),
+            name=aggregator_dict.get("name", "")
+        )
+
 
     def _load_config(self, config_path: str) -> dict:
         """

@@ -29,7 +29,7 @@ class CollectorAgent(threading.Thread):
                          self.device.name, self.interval)
         while not self._stop_event.is_set():
             try:
-                snapshot = self.device.collect_snapshot()
+                snapshot = self.device.collect_metrics()
                 if snapshot:
                     self.aggregator.add_snapshot(snapshot)
                     self.logger.debug("[CollectorAgent] Snapshot from '%s' added to aggregator.", 

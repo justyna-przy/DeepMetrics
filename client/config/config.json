@@ -35,5 +35,9 @@
             },
             "num_models": 5
         }
+    },
+    "aggregator_config": {
+        "guid": "8e1701a8-195c-4425-9a78-e7b7718b1216",
+        "name": "Justyna's Laptop"
     }
 }
