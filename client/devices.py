@@ -43,8 +43,6 @@ class LocalDevice(Device):
                     gpu_id = gpu.id
                     gpu_metrics[f"GPU {gpu_id} usage (%)"] = gpu.load * 100
                     gpu_metrics[f"GPU {gpu_id} temperature (°C)"] = gpu.temperature
-                    gpu_metrics[f"GPU {gpu_id} total memory (MB)"] = gpu.memoryTotal
-                    gpu_metrics[f"GPU {gpu_id} used memory (MB)"] = gpu.memoryUsed
                     gpu_metrics[f"GPU {gpu_id} memory usage (%)"] = (
                         (gpu.memoryUsed / gpu.memoryTotal) * 100 if gpu.memoryTotal > 0 else 0.0
                     )
