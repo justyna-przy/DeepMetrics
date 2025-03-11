@@ -255,7 +255,7 @@ def get_metric_history(
     Also computes average and maximum metric values over the given time range.
     """
     with BlockTimer("get_metric_history", logger=logging.getLogger("uvicorn")):
-        # 1. Determine start_time based on time_filter
+        # Determine start_time based on time_filter
         now = datetime.utcnow()
         if time_filter == "24h":
             start_time = now - timedelta(hours=24)
@@ -266,7 +266,6 @@ def get_metric_history(
         else:
             raise HTTPException(status_code=400, detail="Invalid time_filter provided.")
 
-        # 2. Locate the metric definition by metric_name
         metric_def = (
             db.query(MetricDefinitionEx)
             .filter_by(metric_name=metric_name)
@@ -275,8 +274,7 @@ def get_metric_history(
         if not metric_def:
             raise HTTPException(status_code=404, detail="Metric not found")
 
-        # 3. Build a base query that joins MetricValueEx -> DeviceSnapshotEx
-        #    We no longer join aggregator/device since we don't need them.
+        # Build a base query that joins MetricValueEx -> DeviceSnapshotEx
         base_query = (
             db.query(MetricValueEx, DeviceSnapshotEx.snapshot_time)
             .join(DeviceSnapshotEx,
@@ -285,11 +283,10 @@ def get_metric_history(
             .filter(DeviceSnapshotEx.snapshot_time >= start_time)
         )
 
-        # 4. Counting total records (removing any ORDER BY)
         count_query = base_query.with_entities(func.count()).order_by(None)
         total_count = count_query.scalar()
 
-        # 5. Sort order by snapshot_time asc/desc
+        # Sort order by snapshot_time asc/desc
         if sort not in ["asc", "desc"]:
             raise HTTPException(status_code=400, detail="Invalid sort param, must be 'asc' or 'desc'")
 
@@ -298,11 +295,10 @@ def get_metric_history(
         else:
             base_query = base_query.order_by(DeviceSnapshotEx.snapshot_time.desc())
 
-        # 6. Pagination
         offset = (page - 1) * page_size
         paginated_results = base_query.offset(offset).limit(page_size).all()
 
-        # 7. Calculate average and max over the full filtered range
+        # Calculate average and max over the full filtered range
         stats_query = (
             db.query(
                 func.avg(MetricValueEx.metric_value).label("avg_value"),
@@ -317,7 +313,7 @@ def get_metric_history(
         avg_value = stats_result.avg_value if stats_result and stats_result.avg_value is not None else 0
         max_value = stats_result.max_value if stats_result and stats_result.max_value is not None else 0
 
-        # 8. Format the paginated rows
+        # Format the paginated rows
         rows = []
         for (metric_val, snap_time) in paginated_results:
             rows.append({
@@ -325,7 +321,6 @@ def get_metric_history(
                 "value": metric_val.metric_value
             })
 
-        # 9. Return final JSON
         return {
             "metricName": metric_name,
             "timeFilter": time_filter,
