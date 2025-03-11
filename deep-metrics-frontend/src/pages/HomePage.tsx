@@ -1,12 +1,12 @@
+// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AggregatorCard from "../components/AggregatorCard";
 import DeviceCard from "../components/DeviceCard";
 import GraphedMetric from "../components/GraphedMetric";
 import RowMetric from "../components/RowMetric";
+import { SyncLoader } from "react-spinners";
 
-// Maybe move this to graphed metric component?
-// shit this already exists lol
 interface DataPoint {
   time: string;
   value: number;
@@ -14,7 +14,7 @@ interface DataPoint {
 
 interface Metric {
   metricName: string;
-  displayType: string; // "graph" or "row"/"table"
+  displayType: string;
   data: DataPoint[];
 }
 
@@ -33,108 +33,173 @@ interface Aggregator {
 
 const HomePage: React.FC = () => {
   const [aggregators, setAggregators] = useState<Aggregator[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  /**
+   * For each aggregatorName, store the selected deviceName (or "all").
+   * Example: { "Justyna's Laptop": "Local Device", "Other Aggregator": "all" }
+   */
+  const [selectedDevices, setSelectedDevices] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 
-  // Polling example: fetch data on mount + repeat every 10 seconds
+  // 1) On first mount, fetch aggregator=all & device=all to discover all aggregators.
   useEffect(() => {
     let isMounted = true;
-
-    const fetchData = async () => {
+    const initialFetch = async () => {
       try {
-        // Example: fetch "all aggregators/all devices" overview
         const resp = await fetch("http://127.0.0.1:8000/api/overview?aggregator=all&device=all");
         if (!resp.ok) {
-          console.error("Failed to fetch aggregator data:", resp.statusText);
-          return;
+          throw new Error(`Failed to fetch aggregator data: ${resp.statusText}`);
         }
-        const data = await resp.json();
+        const data = await resp.json(); // Expecting an array of aggregator objects
         if (isMounted) {
-          // Expecting data in form: [ { aggregatorId, aggregatorName, devices: [...] }, ... ]
           setAggregators(data);
         }
       } catch (err) {
         console.error("Error fetching aggregator data:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    initialFetch();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 2) Poll every 10 seconds for each aggregator using aggregatorName and selected device.
+  //    We remove `aggregators` from the dependency array to avoid re-creating the interval on every poll.
+  useEffect(() => {
+    if (loading || aggregators.length === 0) return;
+
+    let isMounted = true;
+    const pollData = async () => {
+      try {
+        const newAggregators: Aggregator[] = [];
+        for (const agg of aggregators) {
+          // Use the selected device for this aggregator if set; otherwise "all"
+          const deviceName = selectedDevices[agg.aggregatorName] ?? "all";
+          const url = `http://127.0.0.1:8000/api/overview?aggregator=${encodeURIComponent(
+            agg.aggregatorName
+          )}&device=${encodeURIComponent(deviceName)}`;
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            throw new Error(`Failed aggregator fetch: ${resp.statusText}`);
+          }
+          const data = await resp.json(); // typically an array with one aggregator object
+          if (data.length > 0) {
+            newAggregators.push(data[0]);
+          } else {
+            newAggregators.push({
+              aggregatorId: agg.aggregatorId,
+              aggregatorName: agg.aggregatorName,
+              devices: [],
+            });
+          }
+        }
+        if (isMounted) {
+          setAggregators(newAggregators);
+        }
+      } catch (err) {
+        console.error("Error polling aggregator data:", err);
       }
     };
 
-    fetchData();
-    const intervalId = setInterval(fetchData, 10_000); // poll every 10s
-
+    // Call pollData immediately and then every 10 seconds.
+    pollData();
+    const intervalId = setInterval(pollData, 10000);
     return () => {
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [loading, selectedDevices]);
 
-  // Optional: function to handle metric clicks
+  // When a metric is clicked, navigate to its detailed page.
   const handleMetricClick = (metricName: string) => {
     navigate(`/metric/${encodeURIComponent(metricName)}`);
   };
 
-  // Optional: function to handle device selection (from some child component)
-  const handleSelectDevice = (deviceId: number) => {
-    console.log(`Selected device ${deviceId}`);
-    // Possibly fetch only that device's data, or update route, etc.
+  /**
+   * Called by each AggregatorCard when a device is selected.
+   * If deviceId === 0, it means "All devices" are selected.
+   * Otherwise, find the device name in the aggregator and store it.
+   */
+  const handleSelectDevice = (aggregatorName: string, deviceId: number) => {
+    if (deviceId === 0) {
+      setSelectedDevices((prev) => ({ ...prev, [aggregatorName]: "all" }));
+      return;
+    }
+    const agg = aggregators.find((a) => a.aggregatorName === aggregatorName);
+    if (!agg) return;
+    const device = agg.devices.find((d) => d.deviceId === deviceId);
+    if (!device) return;
+    setSelectedDevices((prev) => ({ ...prev, [aggregatorName]: device.deviceName }));
   };
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}>
+        <SyncLoader color="#6936d7" />
+      </div>
+    );
+  }
+
+  if (aggregators.length === 0) {
+    return <p>No aggregators found.</p>;
+  }
 
   return (
     <>
-      {aggregators.length === 0 ? (
-        <p>Loading...</p>
-      ) : (
-        aggregators.map((agg) => (
-          <AggregatorCard
-            key={agg.aggregatorId}
-            aggregatorName={agg.aggregatorName}
-            devices={agg.devices.map((d) => ({
-              deviceId: d.deviceId,
-              deviceName: d.deviceName
-            }))}
-            onSelectDevice={handleSelectDevice}
-          >
-            {/* Render each DeviceCard inside the aggregator */}
-            {agg.devices.map((dev) => (
-              <DeviceCard
-                key={dev.deviceId}
-                deviceName={dev.deviceName}
-                lastUpdated={dev.lastUpdated || "N/A"}
-              >
-                {/* For each metric, choose GraphedMetric or TableMetric */}
-                {dev.metrics.map((metric, index) => {
-                  if (metric.displayType === "graph") {
-                    // Transform data into the shape <GraphedMetric> expects
-                    const graphData = metric.data.map((dp) => ({
-                      time: dp.time,
-                      value: dp.value
-                    }));
-                    return (
-                      <GraphedMetric
-                        key={index}
-                        metricName={metric.metricName}
-                        data={graphData}
-                        yMax={100} // or compute from your data?
-                        onClick={handleMetricClick}
-                      />
-                    );
-                  } else {
-                    // For "row" or "table" metrics, only 1 data point typically
-                    const latestValue =
-                      metric.data.length > 0 ? metric.data[metric.data.length - 1].value : 0;
-                    return (
-                      <RowMetric
-                        key={index}
-                        metricName={metric.metricName}
-                        value={latestValue}
-                        onClick={handleMetricClick}
-                      />
-                    );
-                  }
-                })}
-              </DeviceCard>
-            ))}
-          </AggregatorCard>
-        ))
-      )}
+      {aggregators.map((agg) => (
+        <AggregatorCard
+          key={agg.aggregatorId}
+          aggregatorName={agg.aggregatorName}
+          // Pass devices as an array of { deviceId, deviceName }
+          devices={agg.devices.map((d) => ({
+            deviceId: d.deviceId,
+            deviceName: d.deviceName,
+          }))}
+          onSelectDevice={(deviceId) => handleSelectDevice(agg.aggregatorName, deviceId)}
+        >
+          {/* Render each DeviceCard for the aggregator */}
+          {agg.devices.map((dev) => (
+            <DeviceCard
+              key={dev.deviceId}
+              deviceName={dev.deviceName}
+              lastUpdated={dev.lastUpdated || "N/A"}
+            >
+              {dev.metrics.map((metric, index) => {
+                if (metric.displayType === "graph") {
+                  const graphData = metric.data.map((dp) => ({
+                    time: dp.time,
+                    value: dp.value,
+                  }));
+                  return (
+                    <GraphedMetric
+                      key={index}
+                      metricName={metric.metricName}
+                      data={graphData}
+                      yMax={100}
+                      onClick={handleMetricClick}
+                    />
+                  );
+                } else {
+                  const latestValue =
+                    metric.data.length > 0 ? metric.data[metric.data.length - 1].value : 0;
+                  return (
+                    <RowMetric
+                      key={index}
+                      metricName={metric.metricName}
+                      value={latestValue}
+                      onClick={handleMetricClick}
+                    />
+                  );
+                }
+              })}
+            </DeviceCard>
+          ))}
+        </AggregatorCard>
+      ))}
     </>
   );
 };

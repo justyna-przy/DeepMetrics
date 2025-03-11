@@ -1,0 +1,7 @@
+{
+    "rewrites": [
+      { "source": "/deep-metrics", "destination": "/" },
+      { "source": "/deep-metrics/:path*", "destination": "/:path*" }
+    ]
+  }
+  

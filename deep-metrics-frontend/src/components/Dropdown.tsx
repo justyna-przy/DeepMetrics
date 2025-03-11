@@ -14,6 +14,7 @@ const DropdownStyled = styled.select`
   font-size: 1rem;
   padding: 0.25rem;
   padding-right: 2rem; 
+  width: 15rem;
   cursor: pointer;
 
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M7 10l5 5 5-5z'/></svg>");

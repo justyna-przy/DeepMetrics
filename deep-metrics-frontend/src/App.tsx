@@ -12,7 +12,7 @@ const Header = styled.header`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 0.7rem 3rem ;
+  padding: 1rem 3rem ;
   color: ${({ theme }) => theme.colors.text};
 
 `;
@@ -29,6 +29,10 @@ const NavLink = styled.a`
   font-size: 1.3rem;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.text};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 
 const App: React.FC = () => {
