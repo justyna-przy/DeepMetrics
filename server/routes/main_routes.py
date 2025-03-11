@@ -205,8 +205,8 @@ def get_overview(
                 }
 
             metric_map[metric_def_id]["data"].append({
-                "time": snap_time.isoformat() if snap_time else None,
-                "value": metric_value
+                "time": format_timestamp(snap_time) if snap_time else None,
+                "value": round(metric_value, 1)
             })
 
         # Convert aggregator_map to final array structure

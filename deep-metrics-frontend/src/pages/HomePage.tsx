@@ -5,6 +5,8 @@ import DeviceCard from "../components/DeviceCard";
 import GraphedMetric from "../components/GraphedMetric";
 import RowMetric from "../components/RowMetric";
 
+// Maybe move this to graphed metric component?
+// shit this already exists lol
 interface DataPoint {
   time: string;
   value: number;

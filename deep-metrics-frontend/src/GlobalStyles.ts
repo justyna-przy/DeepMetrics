@@ -1,7 +1,6 @@
 import { createGlobalStyle } from 'styled-components';
 
 export const GlobalStyles = createGlobalStyle`
-  /* Apply box-sizing to every element */
   *, *::before, *::after {
     box-sizing: border-box;
   }
@@ -15,6 +14,14 @@ export const GlobalStyles = createGlobalStyle`
     font-family: "Recursive", sans-serif;
     background-color: #0b0813; 
     color: white;
+  }
+
+  select {
+    font-family: "Recursive", sans-serif;
+  }
+
+  button {
+    font-family: "Recursive", sans-serif;
   }
 
 

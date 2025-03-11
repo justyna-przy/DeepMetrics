@@ -1,5 +1,3 @@
-// GraphedMetric.tsx
-
 import React from "react";
 import {
   ResponsiveContainer,
@@ -10,7 +8,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import styled from "styled-components";
+import styled, {useTheme} from "styled-components";
 
 interface MetricPoint {
   time: string;
@@ -28,9 +26,7 @@ const GraphedMetricCard = styled.div`
   width: 100%;
   padding: 1rem 1rem 0.5rem;
   cursor: pointer;
-  &:hover {
-    background-color: #fafafa;
-  }
+  background-color: transparent; 
 `;
 
 const MetricName = styled.h2`
@@ -47,6 +43,7 @@ const GraphedMetric: React.FC<GraphedMetricProps> = ({
   yMax,
   onClick,
 }) => {
+  const theme = useTheme();
   const maxValueInData = data.length
     ? Math.max(...data.map((d) => d.value))
     : 0;
@@ -56,13 +53,17 @@ const GraphedMetric: React.FC<GraphedMetricProps> = ({
     <GraphedMetricCard onClick={() => onClick?.(metricName)}>
       <MetricName>{metricName}</MetricName>
       <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 0 }} style={{cursor: "pointer"}}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="time" axisLine={false} tickLine={false} tick={false} />
           <YAxis domain={[0, upperDomain]} axisLine tickLine />
           <Tooltip
             labelFormatter={(label) => `Time: ${label}`}
             formatter={(value: number) => [`${value}`, "Value"]}
+            contentStyle={{
+              background: theme.colors.header,
+              border: "none",
+            }}
           />
           <Line
             type="monotone"

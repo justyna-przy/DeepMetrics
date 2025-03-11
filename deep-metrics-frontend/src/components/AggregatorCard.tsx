@@ -1,9 +1,8 @@
 import React from "react";
 import styled from "styled-components";
 import { frostedGlass } from "../mixins";
-import { createGlobalStyle } from "styled-components";
 import StyledDropdown from "./Dropdown"; 
-
+import Command from "./Command";
 
 interface Device {
   deviceId: number;
@@ -22,14 +21,13 @@ const AggregatorCardContainer = styled.div`
   max-width: 87rem;
   margin: 2rem auto;
   border-radius: 0.75rem;
-  /* Set a fixed height so overflow can scroll */
-  ${frostedGlass}
   overflow: hidden;
+  ${frostedGlass}
 `;
 
 const AggregatorHeader = styled.div`
   background-color: ${({ theme }) => theme.colors.header};
-  color: #fff;
+  color: ${({ theme }) => theme.colors.text};
   padding: 0.7rem;
   display: flex;
   justify-content: space-between;
@@ -43,41 +41,6 @@ const Title = styled.h3`
   font-weight: 600;
 `;
 
-const DeviceDropdown = styled.select`
-  appearance: none;
-  background-color: ${({ theme }) => theme.colors.device_background};
-  color: ${({ theme }) => theme.colors.text};
-  border: 1px solid ${({ theme }) => theme.colors.header};
-  border-radius: 0.25rem;
-  font-size: 1rem;
-  padding: 0.25rem;
-  padding-right: 2rem; /* Space for custom arrow */
-  cursor: pointer;
-
-  /* Custom dropdown arrow */
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M7 10l5 5 5-5z'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 0.5rem center;
-  background-size: 1rem;
-
-  &::-ms-expand {
-    display: none;
-  }
-`;
-
-/* Apply styles globally to dropdown options */
-const GlobalDropdownStyles = createGlobalStyle`
-  select option {
-    background-color: ${({ theme }) => theme.colors.device_background};
-    color: ${({ theme }) => theme.colors.text};
-  }
-
-  select option:hover,
-  select option:focus {
-    background-color: ${({ theme }) =>
-      theme.colors.highlight}; /* Change this to your preferred hover color */
-  }
-`;
 
 const AggregatorBody = styled.div`
   padding: 1rem;
@@ -104,6 +67,7 @@ const AggregatorCard: React.FC<AggregatorCardProps> = ({
     <AggregatorCardContainer>
       <AggregatorHeader>
         <Title>{aggregatorName}</Title>
+        <div style={{display: "flex", gap: "1rem"}}>
         <StyledDropdown onChange={handleSelectChange}>
           <option value="">Select a device</option>
           {devices.map((d) => (
@@ -112,6 +76,8 @@ const AggregatorCard: React.FC<AggregatorCardProps> = ({
             </option>
           ))}
         </StyledDropdown>
+        <Command aggregatorName={aggregatorName} devices={devices} />
+        </div>
       </AggregatorHeader>
       <AggregatorBody>{children}</AggregatorBody>
     </AggregatorCardContainer>

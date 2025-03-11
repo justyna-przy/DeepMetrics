@@ -13,10 +13,9 @@ const DropdownStyled = styled.select`
   border-radius: 0.25rem;
   font-size: 1rem;
   padding: 0.25rem;
-  padding-right: 2rem; /* Space for custom arrow */
+  padding-right: 2rem; 
   cursor: pointer;
 
-  /* Custom dropdown arrow */
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M7 10l5 5 5-5z'/></svg>");
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
