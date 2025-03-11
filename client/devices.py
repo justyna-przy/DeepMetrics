@@ -2,10 +2,12 @@ import logging
 import psutil
 import requests
 import GPUtil
+import time
 from typing import Dict
 
 from metric_aggregator_sdk.device import Device
 from metric_aggregator_sdk.dto_models import DeviceSnapshot, Numeric
+
 
 class LocalDevice(Device):
     """
@@ -14,20 +16,37 @@ class LocalDevice(Device):
     def __init__(self, name: str = "Local Device", logger: logging.Logger = logging.getLogger("__name__")):
         super().__init__(name)
         self.logger = logger
+        # Track whether device is actively collecting
+        self._running = True
 
     def handle_command(self, command: str):
+        """
+        Handle the commands ["stop", "restart", "start"] in a concrete way.
+        """
         self.logger.info("LocalDevice received command: %s", command)
-        if command == "restart_collector":
-            self.restart_collector()
-
-    def restart_collector(self):
-        self.logger.info("Restarting collector on LocalDevice...")
-        # TODO: Implement collector restart logic here.
+        if command == "stop":
+            self.logger.info("LocalDevice: stopping metrics collection.")
+            self._running = False
+        elif command == "start":
+            self.logger.info("LocalDevice: starting metrics collection.")
+            self._running = True
+        elif command == "restart":
+            self.logger.info("LocalDevice: restarting metrics collection.")
+            self._running = False
+            time.sleep(1)  # short pause to simulate "restart"
+            self._running = True
+        else:
+            self.logger.warning("LocalDevice: unknown command '%s'. Ignoring.", command)
 
     def collect_metrics(self) -> DeviceSnapshot:
         """
-        Collects system metrics (CPU, RAM, disk, GPU) and returns a DeviceSnapshot.
+        Collects system metrics (CPU, RAM, disk, GPU) if running.
         """
+        if not self._running:
+            # Return an empty snapshot if "stopped"
+            self.logger.info("LocalDevice is stopped; skipping metrics collection.")
+            return DeviceSnapshot(device_name=self.name, metrics={})
+
         try:
             cpu_usage = psutil.cpu_percent(interval=None)
             memory_info = psutil.virtual_memory()
@@ -71,11 +90,7 @@ class HuggingFaceDevice(Device):
     """
     A concrete device class for collecting metrics from the Hugging Face API.
     """
-
     def __init__(self, config, name: str = "Hugging Face Top Models", logger: logging.Logger = logging.getLogger("__name__")):
-        """
-        :param config: A configuration object/dictionary for Hugging Face (e.g., containing base_url, endpoint, params, and num_models).
-        """
         super().__init__(name)
         self.logger = logger
         self.config = config
@@ -83,17 +98,37 @@ class HuggingFaceDevice(Device):
         self.endpoint = config.endpoint
         self.params = config.params
         self.num_models = config.num_models
+        # Track whether device is actively collecting
+        self._running = True
 
     def handle_command(self, command: str):
         """
-        Handle a command sent from the aggregator.
+        Handle the commands ["stop", "restart", "start"] in a concrete way.
         """
         self.logger.info("HuggingFaceDevice received command: %s", command)
+        if command == "stop":
+            self.logger.info("HuggingFaceDevice: stopping metrics collection.")
+            self._running = False
+        elif command == "start":
+            self.logger.info("HuggingFaceDevice: starting metrics collection.")
+            self._running = True
+        elif command == "restart":
+            self.logger.info("HuggingFaceDevice: restarting metrics collection.")
+            self._running = False
+            time.sleep(1)  # short pause to simulate "restart"
+            self._running = True
+        else:
+            self.logger.warning("HuggingFaceDevice: unknown command '%s'. Ignoring.", command)
 
     def collect_metrics(self) -> DeviceSnapshot:
         """
-        Fetches data from the Hugging Face models API and returns a DeviceSnapshot with relevant metrics.
+        Fetches data from the Hugging Face models API and returns a DeviceSnapshot with relevant metrics, if running.
         """
+        if not self._running:
+            # Return an empty snapshot if "stopped"
+            self.logger.info("HuggingFaceDevice is stopped; skipping metrics collection.")
+            return DeviceSnapshot(device_name=self.name, metrics={})
+
         url = f"{self.base_url}{self.endpoint}"
         try:
             self.logger.debug("HuggingFaceDevice fetching data from %s with params %s", url, self.params)

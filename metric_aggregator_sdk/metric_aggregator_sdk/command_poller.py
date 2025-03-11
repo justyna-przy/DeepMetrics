@@ -3,7 +3,7 @@ import requests
 import logging
 import threading
 
-class CommandListener(threading.Thread):
+class CommandPoller(threading.Thread):
     """
     A thread that periodically polls the server for commands intended for this aggregator,
     relays them to the registered devices, and then acknowledges them so the server
@@ -19,18 +19,18 @@ class CommandListener(threading.Thread):
         self._stop_event = threading.Event()
 
     def run(self):
-        self.logger.info("[CommandListener] Starting command listener thread.")
+        self.logger.info("[CommandPoller] Starting command poller thread.")
         while not self._stop_event.is_set():
             time.sleep(self.poll_interval)
             try:
                 self._poll_commands()
             except Exception as e:
-                self.logger.warning("[CommandListener] Error while polling commands: %s", e)
+                self.logger.warning("[CommandPoller] Error while polling commands: %s", e)
 
-        self.logger.info("[CommandListener] Stopped command listener thread.")
+        self.logger.info("[CommandPoller] Stopped command poller thread.")
 
     def stop(self):
-        self.logger.info("[CommandListener] Stop signal received.")
+        self.logger.info("[CommandPoller] Stop signal received.")
         self._stop_event.set()
         self.join()
 
@@ -43,12 +43,12 @@ class CommandListener(threading.Thread):
         url = f"{self.base_url}/api/aggregators/{self.aggregator_name}/commands"
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
-        commands = resp.json()  # e.g. [{"command_id":123, "device_name":"DeviceA", "command":"restart"}]
+        commands = resp.json()  
 
         if not commands:
             return
 
-        self.logger.info("[CommandListener] Received %d commands from server.", len(commands))
+        self.logger.info("[CommandPoller] Received %d commands from server.", len(commands))
         ack_ids = []
 
         for cmd in commands:
@@ -57,17 +57,17 @@ class CommandListener(threading.Thread):
             command_str = cmd.get("command")
 
             if not device_name or not command_str:
-                self.logger.warning("[CommandListener] Invalid command format: %s", cmd)
+                self.logger.warning("[CommandPoller] Invalid command format: %s", cmd)
                 continue
 
             # If device is registered, call device.handle_command
             device = self.device_registry.get(device_name)
             if device:
-                self.logger.info("[CommandListener] Relaying command '%s' to device '%s'.", command_str, device_name)
+                self.logger.info("[CommandPoller] Relaying command '%s' to device '%s'.", command_str, device_name)
                 device.handle_command(command_str)
             else:
                 self.logger.warning(
-                    "[CommandListener] No registered device '%s'. Command: %s",
+                    "[CommandPoller] No registered device '%s'. Command: %s",
                     device_name, command_str
                 )
 
@@ -86,4 +86,4 @@ class CommandListener(threading.Thread):
         payload = {"command_ids": command_ids}
         resp = requests.post(url, json=payload, timeout=5)
         resp.raise_for_status()
-        self.logger.info("[CommandListener] Acked command_ids: %s", command_ids)
+        self.logger.info("[CommandPoller] Acked command_ids: %s", command_ids)
