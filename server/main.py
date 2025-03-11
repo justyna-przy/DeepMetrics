@@ -39,6 +39,8 @@ class Application:
             log_config=self.config.uvicorn_log_config
         )
 
+application = Application()
+app = application.app  
+
 if __name__ == "__main__":
-    app = Application()
-    app.run(reload=False)
+    application.run(reload=False)
