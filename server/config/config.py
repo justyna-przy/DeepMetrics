@@ -28,7 +28,6 @@ class Config:
 
         self._replace_env_vars(raw_config)
 
-        logging_dict = raw_config.get("logging_config", {})
         server_dict = raw_config.get("server_config", {})
 
         self.server_settings = ServerConfig(

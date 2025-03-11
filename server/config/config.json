@@ -21,14 +21,6 @@
         "class": "logging.StreamHandler",
         "formatter": "color",
         "level": "DEBUG"
-      },
-      "file": {
-        "class": "logging.handlers.RotatingFileHandler",
-        "formatter": "color",
-        "level": "WARNING",
-        "filename": "logs/server.log",
-        "maxBytes": 10485760,
-        "backupCount": 5
       }
     },
     "loggers": {
