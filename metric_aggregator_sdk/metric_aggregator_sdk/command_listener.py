@@ -1,48 +1,89 @@
-import threading
 import time
 import requests
 import logging
+import threading
 
-class AggregatorCommandListener(threading.Thread):
+class CommandListener(threading.Thread):
     """
-    A background thread that polls the server for commands targeted at this aggregator.
-    When commands are received (as JSON objects), it calls the provided callback function.
+    A thread that periodically polls the server for commands intended for this aggregator,
+    relays them to the registered devices, and then acknowledges them so the server
+    can remove them from the queue.
     """
-    def __init__(self, base_url: str, aggregator_id: str, command_callback, interval: float = 5.0, logger: logging.Logger = None):
-        """
-        Args:
-            base_url (str): The base URL of your server.
-            aggregator_id (str): Unique identifier for this aggregator.
-            command_callback (callable): A function that will be called with each received command (as a dict).
-            interval (float): Polling interval in seconds (default: 5 seconds).
-            logger (logging.Logger): Optional logger instance.
-        """
-        super().__init__(daemon=True)
+    def __init__(self, aggregator_name, base_url, poll_interval=5.0, logger=None, device_registry=None):
+        super().__init__()
+        self.aggregator_name = aggregator_name
         self.base_url = base_url.rstrip("/")
-        self.aggregator_id = aggregator_id
-        self.command_callback = command_callback
-        self.interval = interval
+        self.poll_interval = poll_interval
         self.logger = logger or logging.getLogger(__name__)
+        self.device_registry = device_registry if device_registry is not None else {}
         self._stop_event = threading.Event()
 
     def run(self):
+        self.logger.info("[CommandListener] Starting command listener thread.")
         while not self._stop_event.is_set():
+            time.sleep(self.poll_interval)
             try:
-                url = f"{self.base_url}/api/commands"
-                params = {"aggregator_id": self.aggregator_id}
-                self.logger.debug("Polling for commands at %s with params %s", url, params)
-                response = requests.get(url, params=params, timeout=5)
-                response.raise_for_status()
-                # Expecting a list of command dictionaries, e.g.,
-                # [ { "device_name": "DeviceA", "command": "restart_collector" }, ... ]
-                commands = response.json()
-                if commands:
-                    self.logger.info("Received commands: %s", commands)
-                    for command in commands:
-                        self.command_callback(command)
+                self._poll_commands()
             except Exception as e:
-                self.logger.warning("Error while polling for commands: %s", e)
-            time.sleep(self.interval)
+                self.logger.warning("[CommandListener] Error while polling commands: %s", e)
+
+        self.logger.info("[CommandListener] Stopped command listener thread.")
 
     def stop(self):
+        self.logger.info("[CommandListener] Stop signal received.")
         self._stop_event.set()
+        self.join()
+
+    def _poll_commands(self):
+        """
+        1) GET unacked commands from the server
+        2) Relay each command to the appropriate device
+        3) Ack them back to the server so they won't appear again
+        """
+        url = f"{self.base_url}/api/aggregators/{self.aggregator_name}/commands"
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        commands = resp.json()  # e.g. [{"command_id":123, "device_name":"DeviceA", "command":"restart"}]
+
+        if not commands:
+            return
+
+        self.logger.info("[CommandListener] Received %d commands from server.", len(commands))
+        ack_ids = []
+
+        for cmd in commands:
+            cmd_id = cmd.get("command_id")
+            device_name = cmd.get("device_name")
+            command_str = cmd.get("command")
+
+            if not device_name or not command_str:
+                self.logger.warning("[CommandListener] Invalid command format: %s", cmd)
+                continue
+
+            # If device is registered, call device.handle_command
+            device = self.device_registry.get(device_name)
+            if device:
+                self.logger.info("[CommandListener] Relaying command '%s' to device '%s'.", command_str, device_name)
+                device.handle_command(command_str)
+            else:
+                self.logger.warning(
+                    "[CommandListener] No registered device '%s'. Command: %s",
+                    device_name, command_str
+                )
+
+            ack_ids.append(cmd_id)
+
+        # Now ack them to the server
+        if ack_ids:
+            self._ack_commands(ack_ids)
+
+    def _ack_commands(self, command_ids):
+        """
+        Tells the server these commands have been processed,
+        so it can remove them from the queue.
+        """
+        url = f"{self.base_url}/api/aggregators/{self.aggregator_name}/commands/ack"
+        payload = {"command_ids": command_ids}
+        resp = requests.post(url, json=payload, timeout=5)
+        resp.raise_for_status()
+        self.logger.info("[CommandListener] Acked command_ids: %s", command_ids)

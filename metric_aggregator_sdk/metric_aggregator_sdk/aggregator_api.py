@@ -12,6 +12,7 @@ from metric_aggregator_sdk.config.config import Config
 from .dto_models import DeviceSnapshot, AggregatorData
 from .retry_queue import RetryQueue
 from .device import Device
+from .command_listener import CommandListener
 
 class AggregatorAPI(threading.Thread):
     """
@@ -42,6 +43,13 @@ class AggregatorAPI(threading.Thread):
         self._snapshot_lock = threading.Lock()
         self.retry_queue = RetryQueue(logger=self.logger)
         self.device_registry = {}
+        self.command_listener = CommandListener(
+            aggregator_name=self.name,  
+            base_url=self.base_url,
+            poll_interval=5.0,
+            logger=self.logger,
+            device_registry=self.device_registry
+        )
 
     def register_device(self, device: Device):
         """
@@ -52,6 +60,7 @@ class AggregatorAPI(threading.Thread):
 
     def run(self):
         self.logger.info("[AggregatorAPI] Starting aggregator thread.")
+        self.command_listener.start() 
         last_upload_time = time.time()
         last_retry_time = time.time()
 
@@ -67,6 +76,7 @@ class AggregatorAPI(threading.Thread):
                 self._flush_retry_queue()
                 last_retry_time = current_time
 
+        self.command_listener.stop()
         self.logger.info("[AggregatorAPI] Aggregator thread stopped.")
 
     def stop(self):

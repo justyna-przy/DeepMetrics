@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,12 +13,7 @@ from database.models_ex import (
     MetricValueEx,
     MetricDisplayConfigEx
 )
-import time
-from sqlalchemy import func, case
-from sqlalchemy.orm import aliased
-from sqlalchemy.sql import label
-from sqlalchemy import desc, asc, literal
-from sqlalchemy import or_, and_
+from sqlalchemy import func
 from sqlalchemy.sql import text
 from utils import BlockTimer, format_timestamp
 
@@ -343,3 +337,5 @@ def get_metric_history(
             "maxValue": float(max_value),
             "rows": rows,
         }
+
+

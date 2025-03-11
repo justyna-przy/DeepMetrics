@@ -1,9 +1,9 @@
-import logging
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.config import Config 
-from routes import router  
+from routes.main_routes import router as main_router 
+from routes.command_routes import router as command_router
 from database.db import init_db
 
 class Application:
@@ -27,7 +27,8 @@ class Application:
             allow_headers=["*"],
         )
 
-        self.app.include_router(router)
+        self.app.include_router(main_router)
+        self.app.include_router(command_router)
 
     def run(self, host="0.0.0.0", port=8000, reload=False):
         uvicorn.run(

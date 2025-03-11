@@ -11,3 +11,11 @@ class AggregatorIn(BaseModel):
     guid: str
     name: str
     device_snapshots: List[DeviceSnapshotIn] = []
+
+class CommandIn(BaseModel):
+    aggregator_name: str
+    device_name: str
+    command: str
+
+class CommandAck(BaseModel):
+    command_ids: List[int]
