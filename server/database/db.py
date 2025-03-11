@@ -1,7 +1,5 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import os
-os.makedirs('/app/logs', exist_ok=True)
 
 _engine = None # Global engine which manages the connection pool
 _SessionLocal = None # Global session factory
