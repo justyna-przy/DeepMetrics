@@ -6,40 +6,15 @@ import DeviceCard from "../components/DeviceCard";
 import GraphedMetric from "../components/GraphedMetric";
 import RowMetric from "../components/RowMetric";
 import { SyncLoader } from "react-spinners";
-
-interface DataPoint {
-  time: string;
-  value: number;
-}
-
-interface Metric {
-  metricName: string;
-  displayType: string;
-  data: DataPoint[];
-}
-
-interface Device {
-  deviceId: number;
-  deviceName: string;
-  lastUpdated: string | null;
-  metrics: Metric[];
-}
-
-interface Aggregator {
-  aggregatorId: number;
-  aggregatorName: string;
-  devices: Device[];
-}
+import { config } from "../config/config";
+import { Aggregator} from "../data_models";
 
 const HomePage: React.FC = () => {
   const [aggregators, setAggregators] = useState<Aggregator[]>([]);
   const [loading, setLoading] = useState(true);
-
-  /**
-   * For each aggregatorName, store the selected deviceName (or "all").
-   * Example: { "Justyna's Laptop": "Local Device", "Other Aggregator": "all" }
-   */
-  const [selectedDevices, setSelectedDevices] = useState<Record<string, string>>({});
+  const [selectedDevices, setSelectedDevices] = useState<
+    Record<string, string>
+  >({});
   const navigate = useNavigate();
 
   // 1) On first mount, fetch aggregator=all & device=all to discover all aggregators.
@@ -47,9 +22,14 @@ const HomePage: React.FC = () => {
     let isMounted = true;
     const initialFetch = async () => {
       try {
-        const resp = await fetch("https://deepmetrics.onrender.com/api/overview?aggregator=all&device=all");
+        const resp = await fetch(
+          `${config.apiBaseUrl}${config.endpoints.overview}?aggregator=all&device=all`
+        );
+
         if (!resp.ok) {
-          throw new Error(`Failed to fetch aggregator data: ${resp.statusText}`);
+          throw new Error(
+            `Failed to fetch aggregator data: ${resp.statusText}`
+          );
         }
         const data = await resp.json(); // Expecting an array of aggregator objects
         if (isMounted) {
@@ -133,12 +113,17 @@ const HomePage: React.FC = () => {
     if (!agg) return;
     const device = agg.devices.find((d) => d.deviceId === deviceId);
     if (!device) return;
-    setSelectedDevices((prev) => ({ ...prev, [aggregatorName]: device.deviceName }));
+    setSelectedDevices((prev) => ({
+      ...prev,
+      [aggregatorName]: device.deviceName,
+    }));
   };
 
   if (loading) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}>
+      <div
+        style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}
+      >
         <SyncLoader color="#6936d7" />
       </div>
     );
@@ -159,7 +144,9 @@ const HomePage: React.FC = () => {
             deviceId: d.deviceId,
             deviceName: d.deviceName,
           }))}
-          onSelectDevice={(deviceId) => handleSelectDevice(agg.aggregatorName, deviceId)}
+          onSelectDevice={(deviceId) =>
+            handleSelectDevice(agg.aggregatorName, deviceId)
+          }
         >
           {/* Render each DeviceCard for the aggregator */}
           {agg.devices.map((dev) => (
@@ -168,7 +155,7 @@ const HomePage: React.FC = () => {
               deviceName={dev.deviceName}
               lastUpdated={dev.lastUpdated || "N/A"}
             >
-              {dev.metrics.map((metric, index) => {
+              {dev.metrics?.map((metric, index) => {
                 if (metric.displayType === "graph") {
                   const graphData = metric.data.map((dp) => ({
                     time: dp.time,
@@ -185,7 +172,9 @@ const HomePage: React.FC = () => {
                   );
                 } else {
                   const latestValue =
-                    metric.data.length > 0 ? metric.data[metric.data.length - 1].value : 0;
+                    metric.data.length > 0
+                      ? metric.data[metric.data.length - 1].value
+                      : 0;
                   return (
                     <RowMetric
                       key={index}

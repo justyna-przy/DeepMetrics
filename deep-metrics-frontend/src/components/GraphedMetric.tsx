@@ -9,15 +9,11 @@ import {
   CartesianGrid,
 } from "recharts";
 import styled, {useTheme} from "styled-components";
-
-interface MetricPoint {
-  time: string;
-  value: number;
-}
+import { DataPoint } from "../data_models";
 
 interface GraphedMetricProps {
   metricName: string;
-  data: MetricPoint[];
+  data: DataPoint[];
   yMax?: number;
   onClick?: (metricName: string) => void; 
 }

@@ -3,11 +3,7 @@ import styled from "styled-components";
 import { frostedGlass } from "../mixins";
 import StyledDropdown from "./Dropdown"; 
 import Command from "./Command";
-
-interface Device {
-  deviceId: number;
-  deviceName: string;
-}
+import { Device } from "../data_models";
 
 interface AggregatorCardProps {
   aggregatorName: string;

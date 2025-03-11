@@ -1,0 +1,9 @@
+{
+    "apiBaseUrl": "https://deepmetrics.onrender.com/api",
+    "endpoints": {
+      "overview": "/overview",
+      "metricsHistory": "/metrics/history",
+      "commands": "/commands"
+    }
+  }
+  
