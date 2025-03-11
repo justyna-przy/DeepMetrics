@@ -1,4 +1,3 @@
-// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AggregatorCard from "../components/AggregatorCard";
@@ -7,7 +6,7 @@ import GraphedMetric from "../components/GraphedMetric";
 import RowMetric from "../components/RowMetric";
 import { SyncLoader } from "react-spinners";
 import { config } from "../config/config";
-import { Aggregator} from "../data_models";
+import { Aggregator } from "../data_models";
 
 const HomePage: React.FC = () => {
   const [aggregators, setAggregators] = useState<Aggregator[]>([]);
@@ -17,7 +16,7 @@ const HomePage: React.FC = () => {
   >({});
   const navigate = useNavigate();
 
-  // 1) On first mount, fetch aggregator=all & device=all to discover all aggregators.
+  // On first mount, fetch aggregator=all & device=all to discover all aggregators.
   useEffect(() => {
     let isMounted = true;
     const initialFetch = async () => {
@@ -31,7 +30,7 @@ const HomePage: React.FC = () => {
             `Failed to fetch aggregator data: ${resp.statusText}`
           );
         }
-        const data = await resp.json(); // Expecting an array of aggregator objects
+        const data = await resp.json();
         if (isMounted) {
           setAggregators(data);
         }
@@ -47,8 +46,8 @@ const HomePage: React.FC = () => {
     };
   }, []);
 
-  // 2) Poll every 10 seconds for each aggregator using aggregatorName and selected device.
-  //    We remove `aggregators` from the dependency array to avoid re-creating the interval on every poll.
+  // Poll every 10 seconds for each aggregator using aggregatorName and selected device.
+  // Removed `aggregators` from the dependency array to avoid re-creating the interval on every poll.
   useEffect(() => {
     if (loading || aggregators.length === 0) return;
 
@@ -66,7 +65,7 @@ const HomePage: React.FC = () => {
           if (!resp.ok) {
             throw new Error(`Failed aggregator fetch: ${resp.statusText}`);
           }
-          const data = await resp.json(); // typically an array with one aggregator object
+          const data = await resp.json();
           if (data.length > 0) {
             newAggregators.push(data[0]);
           } else {
@@ -139,7 +138,6 @@ const HomePage: React.FC = () => {
         <AggregatorCard
           key={agg.aggregatorId}
           aggregatorName={agg.aggregatorName}
-          // Pass devices as an array of { deviceId, deviceName }
           devices={agg.devices.map((d) => ({
             deviceId: d.deviceId,
             deviceName: d.deviceName,
@@ -148,7 +146,6 @@ const HomePage: React.FC = () => {
             handleSelectDevice(agg.aggregatorName, deviceId)
           }
         >
-          {/* Render each DeviceCard for the aggregator */}
           {agg.devices.map((dev) => (
             <DeviceCard
               key={dev.deviceId}

@@ -5,7 +5,6 @@ import RowMetric from "../components/RowMetric";
 import StyledDropdown from "../components/Dropdown";
 import { config } from "../config/config";
 
-// ----- Styled Components -----
 const PageContainer = styled.div`
   width: calc(100% - 4rem);
   max-width: 87rem;
@@ -89,17 +88,18 @@ const PageButton = styled.button`
   }
 `;
 
-// ----- Main Component -----
 const MetricPage: React.FC = () => {
   // Extract metric name from route param, e.g. /metric/:metricName
   const { metricName } = useParams<{ metricName: string }>();
 
   // Local state for sort & time filters
-  const [sortValue, setSortValue] = useState("desc"); // default to "desc"
+  const [sortValue, setSortValue] = useState("desc");
   const [timeFilter, setTimeFilter] = useState("24h");
 
   // Data states
-  const [rows, setRows] = useState<Array<{ timestamp: string; value: number }>>([]);
+  const [rows, setRows] = useState<Array<{ timestamp: string; value: number }>>(
+    []
+  );
   const [averageValue, setAverageValue] = useState<number>(0);
   const [maxValue, setMaxValue] = useState<number>(0);
 
@@ -111,24 +111,18 @@ const MetricPage: React.FC = () => {
   // Derived total pages
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
-  // ----- Effect: Fetch metric history whenever filters / page / metricName change -----
   useEffect(() => {
     const fetchMetricHistory = async () => {
-      if (!metricName) return; // in case param is missing
+      if (!metricName) return;
 
       try {
-        // Build query params
         const params = new URLSearchParams({
-          metric_name: metricName,       // required
-          time_filter: timeFilter,       // '24h'|'7d'|'30d'
-          sort: sortValue,              // 'asc'|'desc'
-          page: currentPage.toString(),  
-          page_size: pageSize.toString()
+          metric_name: metricName,
+          time_filter: timeFilter,
+          sort: sortValue,
+          page: currentPage.toString(),
+          page_size: pageSize.toString(),
         });
-        
-        // If needed, pass aggregator_id / device_id here:
-        // params.append("aggregator_id", "1");
-        // params.append("device_id", "42");
 
         const resp = await fetch(
           `${config.apiBaseUrl}${config.endpoints.metricsHistory}?${params}`
@@ -151,7 +145,6 @@ const MetricPage: React.FC = () => {
     fetchMetricHistory();
   }, [metricName, timeFilter, sortValue, currentPage, pageSize]);
 
-  // ----- Handlers -----
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortValue(e.target.value);
     // Reset to first page when sort changes
@@ -164,7 +157,6 @@ const MetricPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // Pagination controls
   const handlePrevPage = () => {
     setCurrentPage((prev) => Math.max(prev - 1, 1));
   };
@@ -175,10 +167,8 @@ const MetricPage: React.FC = () => {
 
   return (
     <PageContainer>
-      {/* ---- Controls (Sort, Filter, Average, Max) ---- */}
       <ControlRow>
         <ControlGroup>
-          {/* Sort Dropdown */}
           <div>
             <LabelText>Sort:</LabelText>
             <StyledDropdown value={sortValue} onChange={handleSortChange}>
@@ -186,47 +176,45 @@ const MetricPage: React.FC = () => {
               <option value="desc">Descending</option>
             </StyledDropdown>
           </div>
-
-          {/* Time Filter Dropdown */}
           <div>
             <LabelText>Filter:</LabelText>
-            <StyledDropdown value={timeFilter} onChange={handleTimeFilterChange}>
+            <StyledDropdown
+              value={timeFilter}
+              onChange={handleTimeFilterChange}
+            >
               <option value="24h">Past 24 hours</option>
               <option value="7d">Past 7 days</option>
               <option value="30d">Past 30 days</option>
             </StyledDropdown>
           </div>
         </ControlGroup>
-
-        {/* Average & Max Values */}
         <ControlGroup>
           <SummaryText>Average Value: {averageValue.toFixed(2)}</SummaryText>
           <SummaryText>Maximum Value: {maxValue.toFixed(2)}</SummaryText>
         </ControlGroup>
       </ControlRow>
 
-      {/* ---- Row Container (Table) ---- */}
       <RowTable>
         <tbody>
           {rows.map((row, idx) => (
-            <RowMetric
-              key={idx}
-              metricName={row.timestamp}   // or pass "Time" label in some other way
-              value={row.value}
-            />
+            <RowMetric key={idx} metricName={row.timestamp} value={row.value} />
           ))}
         </tbody>
       </RowTable>
 
-      {/* ---- Pagination ---- */}
       <PaginationContainer>
         <PageButton disabled={currentPage === 1} onClick={handlePrevPage}>
           &lt;
         </PageButton>
-        
-        <span>Page {currentPage} of {totalPages}</span>
 
-        <PageButton disabled={currentPage === totalPages} onClick={handleNextPage}>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
+
+        <PageButton
+          disabled={currentPage === totalPages}
+          onClick={handleNextPage}
+        >
           &gt;
         </PageButton>
       </PaginationContainer>

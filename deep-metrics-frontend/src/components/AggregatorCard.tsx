@@ -65,8 +65,7 @@ const AggregatorCard: React.FC<AggregatorCardProps> = ({
         <Title>{aggregatorName}</Title>
         <div style={{ display: "flex", gap: "1rem" }}>
           <StyledDropdown onChange={handleSelectChange}>
-            <option value="">Select a device</option>
-            <option value="0">All devices</option>
+            <option value="0">Select a device</option>
             {devices.map((d) => (
               <option key={d.deviceId} value={d.deviceId}>
                 {d.deviceName}
