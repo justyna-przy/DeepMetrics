@@ -161,7 +161,7 @@ class AggregatorAPI(threading.Thread):
                 url,
                 data=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=5
+                timeout=20
             )
             connected_successfully = True
             response.raise_for_status()

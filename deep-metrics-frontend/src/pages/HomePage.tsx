@@ -47,7 +47,7 @@ const HomePage: React.FC = () => {
     let isMounted = true;
     const initialFetch = async () => {
       try {
-        const resp = await fetch("http://127.0.0.1:8000/api/overview?aggregator=all&device=all");
+        const resp = await fetch("https://deepmetrics.onrender.com/api/overview?aggregator=all&device=all");
         if (!resp.ok) {
           throw new Error(`Failed to fetch aggregator data: ${resp.statusText}`);
         }
@@ -79,7 +79,7 @@ const HomePage: React.FC = () => {
         for (const agg of aggregators) {
           // Use the selected device for this aggregator if set; otherwise "all"
           const deviceName = selectedDevices[agg.aggregatorName] ?? "all";
-          const url = `http://127.0.0.1:8000/api/overview?aggregator=${encodeURIComponent(
+          const url = `https://deepmetrics.onrender.com/api/overview?aggregator=${encodeURIComponent(
             agg.aggregatorName
           )}&device=${encodeURIComponent(deviceName)}`;
           const resp = await fetch(url);

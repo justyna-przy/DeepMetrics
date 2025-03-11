@@ -129,7 +129,7 @@ const MetricPage: React.FC = () => {
         // params.append("aggregator_id", "1");
         // params.append("device_id", "42");
 
-        const resp = await fetch(`http://127.0.0.1:8000/api/metrics/history?${params}`);
+        const resp = await fetch(`https://deepmetrics.onrender.com/api/metrics/history?${params}`);
         if (!resp.ok) {
           throw new Error(`Failed to fetch metric history: ${resp.statusText}`);
         }

@@ -52,7 +52,7 @@ const Command: React.FC<CommandDropdownProps> = ({
     // Parse the selected option. Expected format: "DeviceName|command"
     const [deviceName, command] = selectedOption.split("|");
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/commands", {
+      const response = await fetch("https://deepmetrics.onrender.com/api/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
