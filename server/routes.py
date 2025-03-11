@@ -1,4 +1,3 @@
-# routes.py
 import logging
 from typing import Optional
 from datetime import datetime, timedelta
@@ -16,6 +15,13 @@ from database.models_ex import (
 )
 
 router = APIRouter()
+
+"""
+    FastAPI is built around the concept of dependency injection.
+    Depends(get_db) is a dependency that will provide a SQLAlchemy Session to the route function.
+    The Session will be closed automatically in the finally clause when the route function returns.
+    Each request will have its own Session instance.
+"""
 
 @router.post("/api/snapshots")
 def create_aggregator_snapshot(agg_in: AggregatorIn, db: Session = Depends(get_db)):

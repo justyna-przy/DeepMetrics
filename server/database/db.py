@@ -1,26 +1,34 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="server/.env")  
+_engine = None # Global engine which manages the connection pool
+_SessionLocal = None # Global session factory
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is not set or is empty.")
-
-engine = create_engine(DATABASE_URL, echo=False, future=True)
-
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+def init_db(db_url: str):
+    """
+    Called once at application startup.
+    Creates the global engine and SessionLocal for the entire app.
+    """
+    global _engine, _SessionLocal
+    if _engine is not None:
+        return  # Already initialized
+    
+    if not db_url:
+        raise ValueError("DATABASE_URL is empty or not provided.")
+    
+    _engine = create_engine(db_url, echo=False, future=True)
+    _SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False)
 
 def get_db():
     """
-    FastAPI dependency that yields a database session.
-    Ensures the session is closed after each request.
+    FastAPI dependency that yields a session from the global SessionLocal.
+    Raises an error if init_db(...) wasn't called.
     """
-    db = SessionLocal()
+    if _SessionLocal is None:
+        raise RuntimeError("Database not initialized. Call init_db(db_url) before get_db().")
+    
+    db = _SessionLocal()
     try:
-        yield db
+        yield db # return db to the caller, but come back to this function when the request is done
     finally:
         db.close()
