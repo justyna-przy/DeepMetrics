@@ -13,7 +13,7 @@ export const theme = {
     even_row: '#1f1b2f',
   },
   DeviceCardDimensions: {
-    widthDesktop: '27rem', 
+    widthDesktop: '45%', 
     widthMobile: '100%', 
   },
   breakpoints: {

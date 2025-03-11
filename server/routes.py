@@ -11,8 +11,18 @@ from database.models_ex import (
     DeviceEx,
     DeviceSnapshotEx,
     MetricDefinitionEx,
-    MetricValueEx
+    MetricValueEx,
+    MetricDisplayConfigEx
 )
+import time
+from sqlalchemy import func, case
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import label
+from sqlalchemy import desc, asc, literal
+from sqlalchemy import or_, and_
+from sqlalchemy.sql import text
+from block_timer import BlockTimer
+
 
 router = APIRouter()
 
@@ -23,66 +33,111 @@ router = APIRouter()
     Each request will have its own Session instance.
 """
 
+
 @router.post("/api/snapshots")
 def create_aggregator_snapshot(agg_in: AggregatorIn, db: Session = Depends(get_db)):
-    """
-    Receives an AggregatorIn payload with a GUID, name, and device snapshots.
-    Inserts/updates aggregator, devices, metric definitions, 
-    then stores new snapshots and metric values.
-    """
+    with BlockTimer("create_aggregator_snapshot", logger=logging.getLogger("uvicorn")):
+        # 1) Upsert aggregator by guid
+        aggregator = db.query(AggregatorEx).filter_by(guid=agg_in.guid).first()
+        if not aggregator:
+            aggregator = AggregatorEx(guid=agg_in.guid, name=agg_in.name)
+            db.add(aggregator)
+        else:
+            aggregator.name = agg_in.name
+        # No flush yet
 
-    # 1. Upsert aggregator by guid
-    aggregator = db.query(AggregatorEx).filter_by(guid=agg_in.guid).first()
-    if not aggregator:
-        aggregator = AggregatorEx(guid=agg_in.guid, name=agg_in.name)
-        db.add(aggregator)
+        # 2) Bulk upsert devices (based on aggregator_id + device_name)
+        device_names = {ds_in.device_name for ds_in in agg_in.device_snapshots}
+        existing_devices = (
+            db.query(DeviceEx)
+              .filter(DeviceEx.aggregator_id == aggregator.aggregator_id)
+              .filter(DeviceEx.name.in_(device_names))
+              .all()
+        )
+        device_map = {dev.name: dev for dev in existing_devices}
+
+        new_devices = []
+        for dev_name in device_names:
+            if dev_name not in device_map:
+                dev_obj = DeviceEx(
+                    aggregator_id=aggregator.aggregator_id,
+                    name=dev_name
+                )
+                db.add(dev_obj)
+                device_map[dev_name] = dev_obj
+                new_devices.append(dev_obj)
+
+        # 3) Bulk upsert metric definitions
+        all_metric_names = set()
+        for ds_in in agg_in.device_snapshots:
+            for metric_name in ds_in.metrics.keys():
+                all_metric_names.add(metric_name)
+
+        existing_mdefs = (
+            db.query(MetricDefinitionEx)
+              .filter(MetricDefinitionEx.metric_name.in_(all_metric_names))
+              .all()
+        )
+        metricdef_map = {m.metric_name: m for m in existing_mdefs}
+
+        new_mdefs = []
+        for mname in all_metric_names:
+            if mname not in metricdef_map:
+                mdef_obj = MetricDefinitionEx(metric_name=mname)
+                db.add(mdef_obj)
+                metricdef_map[mname] = mdef_obj
+                new_mdefs.append(mdef_obj)
+
+        # 4) Flush once so newly created aggregator, devices, metric defs get their IDs
         db.flush()
-    else:
-        # Optionally update aggregator name if it changed
-        aggregator.name = agg_in.name
 
-    # 2. For each device snapshot
-    for ds_in in agg_in.device_snapshots:
-        # Upsert device
-        device = db.query(DeviceEx).filter_by(
-            aggregator_id=aggregator.aggregator_id,
-            name=ds_in.device_name
-        ).first()
-        if not device:
-            device = DeviceEx(
-                aggregator_id=aggregator.aggregator_id,
-                name=ds_in.device_name
+        # 5) Upsert metric_display_config for each new metric definition
+        #    The table has a default 'row', so we just need to insert if not found
+        if new_mdefs:  # only do a subquery if we created new metric defs
+            new_def_ids = [md.metric_def_id for md in new_mdefs]
+            existing_display = (
+                db.query(MetricDisplayConfigEx)
+                  .filter(MetricDisplayConfigEx.metric_def_id.in_(new_def_ids))
+                  .all()
             )
-            db.add(device)
+            disp_map = {cfg.metric_def_id: cfg for cfg in existing_display}
+
+            for md_obj in new_mdefs:
+                if md_obj.metric_def_id not in disp_map:
+                    disp_cfg = MetricDisplayConfigEx(metric_def_id=md_obj.metric_def_id)
+                    db.add(disp_cfg)
+                    disp_map[md_obj.metric_def_id] = disp_cfg
             db.flush()
 
-        # Create a new device snapshot
-        snapshot = DeviceSnapshotEx(
-            device_id=device.device_id,
-            snapshot_time=ds_in.timestamp
-        )
-        db.add(snapshot)
-        db.flush()
+        # 6) Create device snapshots + metric values
+        #    Now that aggregator, devices, metric defs, and display configs are in place
+        snapshot_objs = []
+        metric_value_objs = []
 
-        # 3. For each metric in ds_in.metrics
-        for metric_name, metric_value in ds_in.metrics.items():
-            # Upsert metric definition
-            metric_def = db.query(MetricDefinitionEx).filter_by(metric_name=metric_name).first()
-            if not metric_def:
-                metric_def = MetricDefinitionEx(metric_name=metric_name)
-                db.add(metric_def)
-                db.flush()
-
-            # Insert metric value
-            mv = MetricValueEx(
-                device_snapshot_id=snapshot.device_snapshot_id,
-                metric_def_id=metric_def.metric_def_id,
-                metric_value=metric_value
+        for ds_in in agg_in.device_snapshots:
+            device = device_map[ds_in.device_name]
+            snapshot = DeviceSnapshotEx(
+                device_id=device.device_id,
+                snapshot_time=ds_in.timestamp
             )
-            db.add(mv)
+            db.add(snapshot)
+            snapshot_objs.append(snapshot)
 
-    db.commit()
-    return {"message": "Aggregator snapshot data saved successfully."}
+            for metric_name, metric_val in ds_in.metrics.items():
+                mdef_obj = metricdef_map[metric_name]
+                mv = MetricValueEx(
+                    metric_def_id=mdef_obj.metric_def_id,
+                    metric_value=metric_val
+                )
+                # Link to snapshot via relationship
+                mv.device_snapshot = snapshot
+                db.add(mv)
+                metric_value_objs.append(mv)
+
+        # 7) Final commit
+        db.commit()
+
+        return {"message": "Aggregator snapshot data saved successfully."}
 
 
 @router.get("/api/aggregators")
@@ -126,135 +181,115 @@ def list_devices_for_aggregator(aggregator_id: int, db: Session = Depends(get_db
     ]
 
 
-
-
 @router.get("/api/overview")
 def get_overview(
     db: Session = Depends(get_db),
-    aggregator: str = Query("all"),
-    device: str = Query("all")
+    graph_limit: int = Query(10, description="How many snapshots for 'graph' metrics"),
+    aggregator: str = Query("all", description="Specific aggregator name or 'all'"),
+    device: str = Query("all", description="Specific device name or 'all'")
 ):
     """
-    Returns aggregator(s) + device(s) + metric data.
-    aggregator: "all" or aggregator ID (as string) or aggregator name
-    device: "all" or device ID (as string) or device name
+    Calls the get_overview_dynamic(p_graph_limit) DB function,
+    which returns up to 'graph_limit' rows for display_type='graph',
+    else 1 row for 'row' metrics.
+
+    Then we filter aggregator/device in Python if not 'all',
+    and return the same aggregator->devices->metrics structure.
     """
-    # 1. Figure out if aggregator == "all" or a specific aggregator
-    aggregators = []
-    if aggregator == "all":
-        aggregators = db.query(AggregatorEx).all()
-    else:
-        # Depending on your UI, aggregator might be an ID or a name
-        # Let's assume it's an integer ID in the query param for simplicity
-        try:
-            agg_id = int(aggregator)
-            found = db.query(AggregatorEx).filter_by(aggregator_id=agg_id).first()
-        except ValueError:
-            # aggregator param is not an int, maybe it's a name
-            found = db.query(AggregatorEx).filter_by(name=aggregator).first()
-        if found:
-            aggregators = [found]
-        else:
-            raise HTTPException(status_code=404, detail="Aggregator not found")
+    with BlockTimer("overview", logger=logging.getLogger("uvicorn")):
+        raw_sql = "SELECT * FROM get_overview(:glimit)"
+        params = {"glimit": graph_limit}
 
-    result = []
+        rows = db.execute(text(raw_sql), params).fetchall()  # each row is a row proxy with columns
 
-    for agg in aggregators:
-        agg_info = {
-            "aggregatorId": agg.aggregator_id,
-            "aggregatorName": agg.name,
-            "devices": []
-        }
+        # 2) Filter in Python if aggregator != "all" or device != "all"
+        filtered = []
+        for row in rows:
+            if aggregator != "all" and row["aggregator_name"] != aggregator:
+                continue
+            if device != "all" and row["device_name"] != device:
+                continue
+            filtered.append(row)
 
-        # 2. For each device in this aggregator, or if device != "all", only fetch that device
-        if device == "all":
-            selected_devices = agg.devices
-        else:
-            # Same logic: try int ID, else treat as name
-            try:
-                dev_id = int(device)
-                selected_devices = [
-                    d for d in agg.devices if d.device_id == dev_id
-                ]
-            except ValueError:
-                # device param is not an int, maybe it's a device name
-                selected_devices = [
-                    d for d in agg.devices if d.name == device
-                ]
-            if not selected_devices:
-                # If the user specified a specific device that doesn't belong
-                # to this aggregator, skip or raise 404
-                raise HTTPException(status_code=404, detail="Device not found")
+        # aggregator -> device -> metrics
+        aggregator_map = {}
+        for r in filtered:
+            agg_id = r["aggregator_id"]
+            agg_name = r["aggregator_name"]
+            dev_id = r["device_id"]
+            dev_name = r["device_name"]
+            snap_time = r["snapshot_time"]
+            metric_def_id = r["metric_def_id"]
+            metric_name = r["metric_name"]
+            metric_value = r["metric_value"]
+            display_type = r["display_type"]
 
-        device_list = []
-        for dev in selected_devices:
-            # get last snapshot
-            last_snap = (
-                db.query(DeviceSnapshotEx)
-                .filter_by(device_id=dev.device_id)
-                .order_by(DeviceSnapshotEx.snapshot_time.desc())
-                .first()
-            )
-            last_updated = last_snap.snapshot_time.isoformat() if last_snap else None
+            # aggregator
+            if agg_id not in aggregator_map:
+                aggregator_map[agg_id] = {
+                    "aggregatorId": agg_id,
+                    "aggregatorName": agg_name,
+                    "devices": {}
+                }
 
-            dev_info = {
-                "deviceId": dev.device_id,
-                "deviceName": dev.name,
-                "lastUpdated": last_updated,
-                "metrics": []
-            }
+            dev_map = aggregator_map[agg_id]["devices"]
+            if dev_id not in dev_map:
+                dev_map[dev_id] = {
+                    "deviceId": dev_id,
+                    "deviceName": dev_name,
+                    "lastUpdated": None,
+                    "metrics": {}
+                }
 
-            # gather distinct metric definitions used by this device
-            metric_defs = (
-                db.query(MetricDefinitionEx)
-                .join(MetricValueEx, MetricValueEx.metric_def_id == MetricDefinitionEx.metric_def_id)
-                .join(DeviceSnapshotEx, DeviceSnapshotEx.device_snapshot_id == MetricValueEx.device_snapshot_id)
-                .filter(DeviceSnapshotEx.device_id == dev.device_id)
-                .distinct()
-                .all()
-            )
+            # update lastUpdated 
+            if snap_time is not None:
+                device_info = dev_map[dev_id]
+                if device_info["lastUpdated"] is None or snap_time > device_info["lastUpdated"]:
+                    device_info["lastUpdated"] = snap_time
 
-            # For each metric_def, decide row vs. graph
-            for metric_def in metric_defs:
-                # If you have a real display_config table, use that:
-                # display_type = metric_def.display_config.display_type or "row"
-                # For this example, let's guess based on name:
-                display_type = "graph" if "Usage" in metric_def.metric_name else "row"
-                limit = 10 if display_type == "graph" else 1
+            # metrics
+            metric_map = dev_map[dev_id]["metrics"]
+            if metric_def_id not in metric_map:
+                metric_map[metric_def_id] = {
+                    "metricName": metric_name,
+                    "displayType": display_type,
+                    "data": []
+                }
 
-                recent_values = (
-                    db.query(MetricValueEx)
-                    .join(DeviceSnapshotEx, DeviceSnapshotEx.device_snapshot_id == MetricValueEx.device_snapshot_id)
-                    .filter(DeviceSnapshotEx.device_id == dev.device_id)
-                    .filter(MetricValueEx.metric_def_id == metric_def.metric_def_id)
-                    .order_by(DeviceSnapshotEx.snapshot_time.desc())
-                    .limit(limit)
-                    .all()
-                )
+            metric_map[metric_def_id]["data"].append({
+                "time": snap_time.isoformat() if snap_time else None,
+                "value": metric_value
+            })
 
-                # Reverse them so earliest is first
-                data_points = []
-                for mv in reversed(recent_values):
-                    snap_time = mv.device_snapshot.snapshot_time.isoformat()
-                    data_points.append({
-                        "time": snap_time,
-                        "value": mv.metric_value
+        # Convert aggregator_map to final array structure
+        result = []
+        for agg_id, agg_info in aggregator_map.items():
+            device_list = []
+            for dev_id, dev_info in agg_info["devices"].items():
+                # Convert metrics dictionary to a list
+                metric_list = []
+                for mdef_id, mval in dev_info["metrics"].items():
+                    metric_list.append({
+                        "metricName": mval["metricName"],
+                        "displayType": mval["displayType"],
+                        "data": mval["data"]
                     })
 
-                dev_info["metrics"].append({
-                    "metricName": metric_def.metric_name,
-                    "displayType": display_type,
-                    "data": data_points
+                device_list.append({
+                    "deviceId": dev_info["deviceId"],
+                    "deviceName": dev_info["deviceName"],
+                    "lastUpdated": (dev_info["lastUpdated"].isoformat()
+                                    if dev_info["lastUpdated"] else None),
+                    "metrics": metric_list
                 })
 
-            device_list.append(dev_info)
+            result.append({
+                "aggregatorId": agg_id,
+                "aggregatorName": agg_info["aggregatorName"],
+                "devices": device_list
+            })
 
-        agg_info["devices"] = device_list
-        result.append(agg_info)
-
-    logging.getLogger("uvicorn").info("Hello from uvicorn logger!")
-
-    return result
+        return result
 
 
 @router.get("/api/metrics/history")
@@ -273,100 +308,100 @@ def get_metric_history(
     Also computes average and maximum metric values over the given time range.
     Optionally filters by aggregator_id and/or device_id.
     """
+    with BlockTimer("get_metric_history", logger=logging.getLogger("uvicorn")):
+        # 1. Determine start_time based on time_filter
+        now = datetime.utcnow()
+        if time_filter == "24h":
+            start_time = now - timedelta(hours=24)
+        elif time_filter == "7d":
+            start_time = now - timedelta(days=7)
+        elif time_filter == "30d":
+            start_time = now - timedelta(days=30)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid time_filter provided.")
 
-    # 1. Determine start_time based on time_filter
-    now = datetime.utcnow()
-    if time_filter == "24h":
-        start_time = now - timedelta(hours=24)
-    elif time_filter == "7d":
-        start_time = now - timedelta(days=7)
-    elif time_filter == "30d":
-        start_time = now - timedelta(days=30)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid time_filter provided.")
-
-    # 2. Locate the metric definition
-    metric_def = (
-        db.query(MetricDefinitionEx)
-        .filter_by(metric_name=metric_name)
-        .first()
-    )
-    if not metric_def:
-        raise HTTPException(status_code=404, detail="Metric not found")
-
-    # 3. Build a base query that joins MetricValueEx -> DeviceSnapshotEx -> DeviceEx -> AggregatorEx
-    base_query = (
-        db.query(MetricValueEx, DeviceSnapshotEx.snapshot_time)
-        .join(DeviceSnapshotEx, DeviceSnapshotEx.device_snapshot_id == MetricValueEx.device_snapshot_id)
-        .join(DeviceEx, DeviceEx.device_id == DeviceSnapshotEx.device_id)
-        .join(AggregatorEx, AggregatorEx.aggregator_id == DeviceEx.aggregator_id)
-        .filter(MetricValueEx.metric_def_id == metric_def.metric_def_id)
-        .filter(DeviceSnapshotEx.snapshot_time >= start_time)
-    )
-
-    # 4. Apply aggregator/device filters if provided
-    if aggregator_id is not None:
-        base_query = base_query.filter(AggregatorEx.aggregator_id == aggregator_id)
-    if device_id is not None:
-        base_query = base_query.filter(DeviceEx.device_id == device_id)
-
-    # 5. Create a separate query for counting, removing any ORDER BY
-    count_query = base_query.with_entities(func.count()).order_by(None)
-    total_count = count_query.scalar()
-
-    # 6. Now apply the sort order to our base_query for actual data retrieval
-    if sort not in ["asc", "desc"]:
-        raise HTTPException(status_code=400, detail="Invalid sort param, must be 'asc' or 'desc'")
-
-    if sort == "asc":
-        base_query = base_query.order_by(DeviceSnapshotEx.snapshot_time.asc())
-    else:
-        base_query = base_query.order_by(DeviceSnapshotEx.snapshot_time.desc())
-
-    # 7. Apply pagination
-    offset = (page - 1) * page_size
-    paginated_results = base_query.offset(offset).limit(page_size).all()
-
-    # 8. Calculate average and max over the full filtered range
-    stats_query = (
-        db.query(
-            func.avg(MetricValueEx.metric_value).label("avg_value"),
-            func.max(MetricValueEx.metric_value).label("max_value")
+        # 2. Locate the metric definition
+        metric_def = (
+            db.query(MetricDefinitionEx)
+            .filter_by(metric_name=metric_name)
+            .first()
         )
-        .join(DeviceSnapshotEx, DeviceSnapshotEx.device_snapshot_id == MetricValueEx.device_snapshot_id)
-        .join(DeviceEx, DeviceEx.device_id == DeviceSnapshotEx.device_id)
-        .join(AggregatorEx, AggregatorEx.aggregator_id == DeviceEx.aggregator_id)
-        .filter(MetricValueEx.metric_def_id == metric_def.metric_def_id)
-        .filter(DeviceSnapshotEx.snapshot_time >= start_time)
-    )
+        if not metric_def:
+            raise HTTPException(status_code=404, detail="Metric not found")
 
-    if aggregator_id is not None:
-        stats_query = stats_query.filter(AggregatorEx.aggregator_id == aggregator_id)
-    if device_id is not None:
-        stats_query = stats_query.filter(DeviceEx.device_id == device_id)
+        # 3. Build a base query that joins MetricValueEx -> DeviceSnapshotEx -> DeviceEx -> AggregatorEx
+        base_query = (
+            db.query(MetricValueEx, DeviceSnapshotEx.snapshot_time)
+            .join(DeviceSnapshotEx, DeviceSnapshotEx.device_snapshot_id == MetricValueEx.device_snapshot_id)
+            .join(DeviceEx, DeviceEx.device_id == DeviceSnapshotEx.device_id)
+            .join(AggregatorEx, AggregatorEx.aggregator_id == DeviceEx.aggregator_id)
+            .filter(MetricValueEx.metric_def_id == metric_def.metric_def_id)
+            .filter(DeviceSnapshotEx.snapshot_time >= start_time)
+        )
 
-    stats_result = stats_query.first()
-    avg_value = stats_result.avg_value if stats_result and stats_result.avg_value is not None else 0
-    max_value = stats_result.max_value if stats_result and stats_result.max_value is not None else 0
+        # 4. Apply aggregator/device filters if provided
+        if aggregator_id is not None:
+            base_query = base_query.filter(AggregatorEx.aggregator_id == aggregator_id)
+        if device_id is not None:
+            base_query = base_query.filter(DeviceEx.device_id == device_id)
 
-    # 9. Format the paginated rows
-    rows = []
-    for (metric_val, snap_time) in paginated_results:
-        rows.append({
-            "timestamp": snap_time.isoformat(),
-            "value": metric_val.metric_value
-        })
+        # 5. Create a separate query for counting, removing any ORDER BY
+        count_query = base_query.with_entities(func.count()).order_by(None)
+        total_count = count_query.scalar()
 
-    return {
-        "metricName": metric_name,
-        "timeFilter": time_filter,
-        "aggregatorId": aggregator_id,
-        "deviceId": device_id,
-        "sort": sort,
-        "page": page,
-        "pageSize": page_size,
-        "totalCount": total_count,
-        "averageValue": float(avg_value),
-        "maxValue": float(max_value),
-        "rows": rows,
-    }
+        # 6. Now apply the sort order to our base_query for actual data retrieval
+        if sort not in ["asc", "desc"]:
+            raise HTTPException(status_code=400, detail="Invalid sort param, must be 'asc' or 'desc'")
+
+        if sort == "asc":
+            base_query = base_query.order_by(DeviceSnapshotEx.snapshot_time.asc())
+        else:
+            base_query = base_query.order_by(DeviceSnapshotEx.snapshot_time.desc())
+
+        # 7. Apply pagination
+        offset = (page - 1) * page_size
+        paginated_results = base_query.offset(offset).limit(page_size).all()
+
+        # 8. Calculate average and max over the full filtered range
+        stats_query = (
+            db.query(
+                func.avg(MetricValueEx.metric_value).label("avg_value"),
+                func.max(MetricValueEx.metric_value).label("max_value")
+            )
+            .join(DeviceSnapshotEx, DeviceSnapshotEx.device_snapshot_id == MetricValueEx.device_snapshot_id)
+            .join(DeviceEx, DeviceEx.device_id == DeviceSnapshotEx.device_id)
+            .join(AggregatorEx, AggregatorEx.aggregator_id == DeviceEx.aggregator_id)
+            .filter(MetricValueEx.metric_def_id == metric_def.metric_def_id)
+            .filter(DeviceSnapshotEx.snapshot_time >= start_time)
+        )
+
+        if aggregator_id is not None:
+            stats_query = stats_query.filter(AggregatorEx.aggregator_id == aggregator_id)
+        if device_id is not None:
+            stats_query = stats_query.filter(DeviceEx.device_id == device_id)
+
+        stats_result = stats_query.first()
+        avg_value = stats_result.avg_value if stats_result and stats_result.avg_value is not None else 0
+        max_value = stats_result.max_value if stats_result and stats_result.max_value is not None else 0
+
+        # 9. Format the paginated rows
+        rows = []
+        for (metric_val, snap_time) in paginated_results:
+            rows.append({
+                "timestamp": snap_time.isoformat(),
+                "value": metric_val.metric_value
+            })
+
+        return {
+            "metricName": metric_name,
+            "timeFilter": time_filter,
+            "aggregatorId": aggregator_id,
+            "deviceId": device_id,
+            "sort": sort,
+            "page": page,
+            "pageSize": page_size,
+            "totalCount": total_count,
+            "averageValue": float(avg_value),
+            "maxValue": float(max_value),
+            "rows": rows,
+        }
